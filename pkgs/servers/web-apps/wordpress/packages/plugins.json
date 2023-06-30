@@ -53,11 +53,17 @@
     "sha256": "04x5dj79bx5avx8db991nlhrpd3qv3maniqmzwnyd8ab2zblzx83",
     "version": "1.0.1"
   },
-  "gutenberg": {
-    "path": "gutenberg/tags/14.9.1",
-    "rev": "2845697",
+  "elementor": {
+    "path": "elementor/tags/3.9.2",
+    "rev": "2932764",
     "sha256": "0wkwbka78nj6dqrjrm9qpbzfk848v38myrzvdwk40qz8ab6mhrqb",
-    "version": "14.9.1"
+    "version": "3.9.2"
+  },
+  "gutenberg": {
+    "path": "gutenberg/tags/16.1.0",
+    "rev": "2932764",
+    "sha256": "0wkwbka78nj6dqrjrm9qpbzfk848v38myrzvdwk40qz8ab6mhrqb",
+    "version": "16.1.0"
   },
   "hello-dolly": {
     "path": "hello-dolly/tags/1.7.2",
@@ -131,11 +137,17 @@
     "sha256": "0m8hbz72kvzlrcb5jnyfka90xfk1dg602rwmf22xnawzbw52532p",
     "version": "0.25.5"
   },
+  "woocommerce": {
+    "path": "woocommerce/tags/7.8.1",
+    "rev": "2932752",
+    "sha256": "0wkwbka78nj6dqrjrm9qpbzfk848v38myrzvdwk40qz8ab6mhrqb",
+    "version": "7.8.1"
+  },
   "wordpress-seo": {
-    "path": "wordpress-seo/tags/19.14",
-    "rev": "2845973",
+    "path": "wordpress-seo/tags/20.9",
+    "rev": "2932764",
     "sha256": "03z416vj5xw4pq58g5jr5ai7hkjswi94xjldcah22iy0q6031v2n",
-    "version": "19.14"
+    "version": "20.9"
   },
   "worker": {
     "path": "worker/tags/4.9.16",
