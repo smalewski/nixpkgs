@@ -1,4 +1,4 @@
-from contextlib import _GeneratorContextManager
+from contextlib import _GeneratorContextManager, nullcontext
 from pathlib import Path
 from queue import Queue
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
@@ -7,6 +7,7 @@ import io
 import os
 import queue
 import re
+import select
 import shlex
 import shutil
 import socket
@@ -99,7 +100,7 @@ def _perform_ocr_on_screenshot(
         + "-blur 1x65535"
     )
 
-    tess_args = f"-c debug_file=/dev/null --psm 11"
+    tess_args = "-c debug_file=/dev/null --psm 11"
 
     cmd = f"convert {magick_args} '{screenshot_path}' 'tiff:{screenshot_path}.tiff'"
     ret = subprocess.run(cmd, shell=True, capture_output=True)
@@ -132,7 +133,7 @@ def retry(fn: Callable, timeout: int = 900) -> None:
 
 
 class StartCommand:
-    """The Base Start Command knows how to append the necesary
+    """The Base Start Command knows how to append the necessary
     runtime qemu options as determined by a particular test driver
     run. Any such start command is expected to happily receive and
     append additional qemu args.
@@ -144,7 +145,7 @@ class StartCommand:
         self,
         monitor_socket_path: Path,
         shell_socket_path: Path,
-        allow_reboot: bool = False,  # TODO: unused, legacy?
+        allow_reboot: bool = False,
     ) -> str:
         display_opts = ""
         display_available = any(x in os.environ for x in ["DISPLAY", "WAYLAND_DISPLAY"])
@@ -152,16 +153,15 @@ class StartCommand:
             display_opts += " -nographic"
 
         # qemu options
-        qemu_opts = ""
-        qemu_opts += (
-            ""
-            if allow_reboot
-            else " -no-reboot"
+        qemu_opts = (
             " -device virtio-serial"
+            # Note: virtconsole will map to /dev/hvc0 in Linux guests
             " -device virtconsole,chardev=shell"
             " -device virtio-rng-pci"
             " -serial stdio"
         )
+        if not allow_reboot:
+            qemu_opts += " -no-reboot"
         # TODO: qemu script already catpures this env variable, legacy?
         qemu_opts += " " + os.environ.get("QEMU_OPTS", "")
 
@@ -195,9 +195,10 @@ class StartCommand:
         shared_dir: Path,
         monitor_socket_path: Path,
         shell_socket_path: Path,
+        allow_reboot: bool,
     ) -> subprocess.Popen:
         return subprocess.Popen(
-            self.cmd(monitor_socket_path, shell_socket_path),
+            self.cmd(monitor_socket_path, shell_socket_path, allow_reboot),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -210,7 +211,7 @@ class StartCommand:
 class NixStartScript(StartCommand):
     """A start script from nixos/modules/virtualiation/qemu-vm.nix
     that also satisfies the requirement of the BaseStartCommand.
-    These Nix commands have the particular charactersitic that the
+    These Nix commands have the particular characteristic that the
     machine name can be extracted out of them via a regex match.
     (Admittedly a _very_ implicit contract, evtl. TODO fix)
     """
@@ -312,7 +313,6 @@ class Machine:
 
     start_command: StartCommand
     keep_vm_state: bool
-    allow_reboot: bool
 
     process: Optional[subprocess.Popen]
     pid: Optional[int]
@@ -337,13 +337,11 @@ class Machine:
         start_command: StartCommand,
         name: str = "machine",
         keep_vm_state: bool = False,
-        allow_reboot: bool = False,
         callbacks: Optional[List[Callable]] = None,
     ) -> None:
         self.out_dir = out_dir
         self.tmp_dir = tmp_dir
         self.keep_vm_state = keep_vm_state
-        self.allow_reboot = allow_reboot
         self.name = name
         self.start_command = start_command
         self.callbacks = callbacks if callbacks is not None else []
@@ -371,8 +369,8 @@ class Machine:
     @staticmethod
     def create_startcommand(args: Dict[str, str]) -> StartCommand:
         rootlog.warning(
-            "Using legacy create_startcommand(),"
-            "please use proper nix test vm instrumentation, instead"
+            "Using legacy create_startcommand(), "
+            "please use proper nix test vm instrumentation, instead "
             "to generate the appropriate nixos test vm qemu startup script"
         )
         hda = None
@@ -406,25 +404,23 @@ class Machine:
         return rootlog.nested(msg, my_attrs)
 
     def wait_for_monitor_prompt(self) -> str:
-        with self.nested("waiting for monitor prompt"):
-            assert self.monitor is not None
-            answer = ""
-            while True:
-                undecoded_answer = self.monitor.recv(1024)
-                if not undecoded_answer:
-                    break
-                answer += undecoded_answer.decode()
-                if answer.endswith("(qemu) "):
-                    break
-            return answer
+        assert self.monitor is not None
+        answer = ""
+        while True:
+            undecoded_answer = self.monitor.recv(1024)
+            if not undecoded_answer:
+                break
+            answer += undecoded_answer.decode()
+            if answer.endswith("(qemu) "):
+                break
+        return answer
 
     def send_monitor_command(self, command: str) -> str:
         self.run_callbacks()
-        with self.nested(f"sending monitor command: {command}"):
-            message = f"{command}\n".encode()
-            assert self.monitor is not None
-            self.monitor.send(message)
-            return self.wait_for_monitor_prompt()
+        message = f"{command}\n".encode()
+        assert self.monitor is not None
+        self.monitor.send(message)
+        return self.wait_for_monitor_prompt()
 
     def wait_for_unit(
         self, unit: str, user: Optional[str] = None, timeout: int = 900
@@ -518,7 +514,11 @@ class Machine:
         return "".join(output_buffer)
 
     def execute(
-        self, command: str, check_return: bool = True, timeout: Optional[int] = 900
+        self,
+        command: str,
+        check_return: bool = True,
+        check_output: bool = True,
+        timeout: Optional[int] = 900,
     ) -> Tuple[int, str]:
         self.run_callbacks()
         self.connect()
@@ -530,12 +530,17 @@ class Machine:
         if timeout is not None:
             timeout_str = f"timeout {timeout}"
 
+        # While sh is bash on NixOS, this is not the case for every distro.
+        # We explicitly call bash here to allow for the driver to boot other distros as well.
         out_command = (
-            f"{timeout_str} sh -c {shlex.quote(command)} | (base64 --wrap 0; echo)\n"
+            f"{timeout_str} bash -c {shlex.quote(command)} | (base64 --wrap 0; echo)\n"
         )
 
         assert self.shell
         self.shell.send(out_command.encode())
+
+        if not check_output:
+            return (-2, "")
 
         # Get the output
         output = base64.b64decode(self._next_newline_closed_block_from_shell())
@@ -547,7 +552,7 @@ class Machine:
         self.shell.send("echo ${PIPESTATUS[0]}\n".encode())
         rc = int(self._next_newline_closed_block_from_shell().strip())
 
-        return (rc, output.decode())
+        return (rc, output.decode(errors="replace"))
 
     def shell_interact(self, address: Optional[str] = None) -> None:
         """Allows you to interact with the guest shell for debugging purposes.
@@ -643,7 +648,7 @@ class Machine:
             return status != 0
 
         with self.nested(f"waiting for failure: {command}"):
-            retry(check_failure)
+            retry(check_failure, timeout)
             return output
 
     def wait_for_shutdown(self) -> None:
@@ -685,9 +690,9 @@ class Machine:
             retry(tty_matches)
 
     def send_chars(self, chars: str, delay: Optional[float] = 0.01) -> None:
-        with self.nested(f"sending keys '{chars}'"):
+        with self.nested(f"sending keys {repr(chars)}"):
             for char in chars:
-                self.send_key(char, delay)
+                self.send_key(char, delay, log=False)
 
     def wait_for_file(self, filename: str) -> None:
         """Waits until the file exists in machine's file system."""
@@ -725,6 +730,15 @@ class Machine:
         self.wait_for_unit(jobname)
 
     def connect(self) -> None:
+        def shell_ready(timeout_secs: int) -> bool:
+            """We sent some data from the backdoor service running on the guest
+            to indicate that the backdoor shell is ready.
+            As soon as we read some data from the socket here, we assume that
+            our root shell is operational.
+            """
+            (ready, _, _) = select.select([self.shell], [], [], timeout_secs)
+            return bool(ready)
+
         if self.connected:
             return
 
@@ -734,8 +748,11 @@ class Machine:
             assert self.shell
 
             tic = time.time()
-            self.shell.recv(1024)
-            # TODO: Timeout
+            # TODO: do we want to bail after a set number of attempts?
+            while not shell_ready(timeout_secs=30):
+                self.log("Guest root shell did not produce any data yet...")
+
+            self.log(self.shell.recv(1024).decode())
             toc = time.time()
 
             self.log("connected to guest root shell")
@@ -743,9 +760,10 @@ class Machine:
             self.connected = True
 
     def screenshot(self, filename: str) -> None:
-        word_pattern = re.compile(r"^\w+$")
-        if word_pattern.match(filename):
-            filename = os.path.join(self.out_dir, f"{filename}.png")
+        if "." not in filename:
+            filename += ".png"
+        if "/" not in filename:
+            filename = os.path.join(self.out_dir, filename)
         tmp = f"{filename}.ppm"
 
         with self.nested(
@@ -844,27 +862,47 @@ class Machine:
         with self.nested(f"waiting for {regex} to appear on screen"):
             retry(screen_matches)
 
-    def wait_for_console_text(self, regex: str) -> None:
-        with self.nested(f"waiting for {regex} to appear on console"):
-            # Buffer the console output, this is needed
-            # to match multiline regexes.
-            console = io.StringIO()
-            while True:
-                try:
-                    console.write(self.last_lines.get())
-                except queue.Empty:
-                    self.sleep(1)
-                    continue
-                console.seek(0)
-                matches = re.search(regex, console.read())
-                if matches is not None:
-                    return
+    def wait_for_console_text(self, regex: str, timeout: int | None = None) -> None:
+        """
+        Wait for the provided regex to appear on console.
+        For each reads,
 
-    def send_key(self, key: str, delay: Optional[float] = 0.01) -> None:
+        If timeout is None, timeout is infinite.
+
+        `timeout` is in seconds.
+        """
+        # Buffer the console output, this is needed
+        # to match multiline regexes.
+        console = io.StringIO()
+
+        def console_matches(_: Any) -> bool:
+            nonlocal console
+            try:
+                # This will return as soon as possible and
+                # sleep 1 second.
+                console.write(self.last_lines.get(block=False))
+            except queue.Empty:
+                pass
+            console.seek(0)
+            matches = re.search(regex, console.read())
+            return matches is not None
+
+        with self.nested(f"waiting for {regex} to appear on console"):
+            if timeout is not None:
+                retry(console_matches, timeout)
+            else:
+                while not console_matches(False):
+                    pass
+
+    def send_key(
+        self, key: str, delay: Optional[float] = 0.01, log: Optional[bool] = True
+    ) -> None:
         key = CHAR_TO_KEY.get(key, key)
-        self.send_monitor_command(f"sendkey {key}")
-        if delay is not None:
-            time.sleep(delay)
+        context = self.nested(f"sending key {repr(key)}") if log else nullcontext()
+        with context:
+            self.send_monitor_command(f"sendkey {key}")
+            if delay is not None:
+                time.sleep(delay)
 
     def send_console(self, chars: str) -> None:
         assert self.process
@@ -872,7 +910,7 @@ class Machine:
         self.process.stdin.write(chars.encode())
         self.process.stdin.flush()
 
-    def start(self) -> None:
+    def start(self, allow_reboot: bool = False) -> None:
         if self.booted:
             return
 
@@ -896,6 +934,7 @@ class Machine:
             self.shared_dir,
             self.monitor_path,
             self.shell_path,
+            allow_reboot,
         )
         self.monitor, _ = monitor_socket.accept()
         self.shell, _ = shell_socket.accept()
@@ -943,6 +982,15 @@ class Machine:
         self.log("forced crash")
         self.send_monitor_command("quit")
         self.wait_for_shutdown()
+
+    def reboot(self) -> None:
+        """Press Ctrl+Alt+Delete in the guest.
+
+        Prepares the machine to be reconnected which is useful if the
+        machine was started with `allow_reboot = True`
+        """
+        self.send_key("ctrl-alt-delete")
+        self.connected = False
 
     def wait_for_x(self) -> None:
         """Wait until it is possible to connect to the X server.  Note that

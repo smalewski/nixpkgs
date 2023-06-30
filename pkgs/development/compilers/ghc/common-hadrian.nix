@@ -41,7 +41,7 @@
               || stdenv.targetPlatform.isSparc
               || (stdenv.targetPlatform.isAarch64 && stdenv.targetPlatform.isDarwin)
               || stdenv.targetPlatform.isGhcjs)
-, # LLVM is conceptually a run-time-only depedendency, but for
+, # LLVM is conceptually a run-time-only dependency, but for
   # non-x86, we need LLVM to bootstrap later stages, so it becomes a
   # build-time dependency too.
   buildTargetLlvmPackages
@@ -62,7 +62,7 @@
 
 , # Whether to build dynamic libs for the standard library (on the target
   # platform). Static libs are always built.
-  enableShared ? with stdenv.targetPlatform; !isWindows && !useiOSPrebuilt && !isStatic
+  enableShared ? with stdenv.targetPlatform; !isWindows && !useiOSPrebuilt && !isStatic && !isGhcjs
 
 , # Whether to build terminfo.
   enableTerminfo ? !(stdenv.targetPlatform.isWindows
@@ -91,7 +91,7 @@
       transformers =
         lib.optionals useLLVM [ "llvm" ]
         ++ lib.optionals (!enableShared) [
-          "fully_static"
+          "no_dynamic_libs"
           "no_dynamic_ghc"
         ]
         ++ lib.optionals (!enableProfiledLibs) [ "no_profiled_libs" ]
@@ -143,6 +143,20 @@
         return $ verbosity >= Verbose
   ''
 
+, ghcSrc ? (if rev != null then fetchgit else fetchurl) ({
+    inherit url sha256;
+  } // lib.optionalAttrs (rev != null) {
+    inherit rev;
+  })
+
+  # GHC's build system hadrian built from the GHC-to-build's source tree
+  # using our bootstrap GHC.
+, hadrian ? bootPkgs.callPackage ../../tools/haskell/hadrian {
+    ghcSrc = ghcSrc;
+    ghcVersion = version;
+    userSettings = hadrianUserSettings;
+  }
+
 , #  Whether to build sphinx documentation.
   enableDocs ? (
     # Docs disabled for musl and cross because it's a large task to keep
@@ -161,12 +175,6 @@
 assert !enableNativeBignum -> gmp != null;
 
 let
-  src = (if rev != null then fetchgit else fetchurl) ({
-    inherit url sha256;
-  } // lib.optionalAttrs (rev != null) {
-    inherit rev;
-  });
-
   inherit (stdenv) buildPlatform hostPlatform targetPlatform;
 
   inherit (bootPkgs) ghc;
@@ -182,20 +190,11 @@ let
     # be needed for TemplateHaskell. This solution was described in
     # https://www.tweag.io/blog/2020-09-30-bazel-static-haskell
     lib.optionals enableRelocatedStaticLibs [
-      "*.*.rts.*.opts += -fPIC -fexternal-dynamic-refs"
       "*.*.ghc.*.opts += -fPIC -fexternal-dynamic-refs"
     ]
     ++ lib.optionals targetPlatform.useAndroidPrebuilt [
       "*.*.ghc.c.opts += -optc-std=gnu99"
     ];
-
-  # GHC's build system hadrian built from the GHC-to-build's source tree
-  # using our bootstrap GHC.
-  hadrian = bootPkgs.callPackage ../../tools/haskell/hadrian {
-    ghcSrc = src;
-    ghcVersion = version;
-    userSettings = hadrianUserSettings;
-  };
 
   # Splicer will pull out correct variations
   libDeps = platform: lib.optional enableTerminfo ncurses
@@ -259,7 +258,7 @@ stdenv.mkDerivation ({
   pname = "${targetPrefix}ghc${variantSuffix}";
   inherit version;
 
-  inherit src;
+  src = ghcSrc;
 
   enableParallelBuilding = true;
 
@@ -396,16 +395,14 @@ stdenv.mkDerivation ({
 
   nativeBuildInputs = [
     perl ghc hadrian bootPkgs.alex bootPkgs.happy bootPkgs.hscolour
-  ] ++ lib.optionals (rev != null) [
-    # We need to execute the boot script
-    autoconf automake m4 python3
+    # autoconf and friends are necessary for hadrian to create the bindist
+    autoconf automake m4
+    # Python is used in a few scripts invoked by hadrian to generate e.g. rts headers.
+    python3
   ] ++ lib.optionals (stdenv.isDarwin && stdenv.isAarch64) [
     autoSignDarwinBinariesHook
   ] ++ lib.optionals enableDocs [
     sphinx
-  ] ++ lib.optionals targetPlatform.isGhcjs [
-    # emscripten itself is added via depBuildTarget / targetCC
-    python3
   ];
 
   # For building runtime libs
@@ -426,10 +423,10 @@ stdenv.mkDerivation ({
     runHook preBuild
 
     # hadrianFlagsArray is created in preConfigure
-    echo "hadrianFlags: $hadrianFlags ''${hadrianFlagsArray}"
+    echo "hadrianFlags: $hadrianFlags ''${hadrianFlagsArray[@]}"
 
     # We need to go via the bindist for installing
-    hadrian $hadrianFlags "''${hadrianFlagsArray}" binary-dist-dir
+    hadrian $hadrianFlags "''${hadrianFlagsArray[@]}" binary-dist-dir
 
     runHook postBuild
   '';

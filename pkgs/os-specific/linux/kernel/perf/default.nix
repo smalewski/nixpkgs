@@ -25,6 +25,7 @@
 , libbfd_2_38
 , libopcodes
 , libopcodes_2_38
+, libtraceevent
 , openssl
 , systemtap
 , numactl
@@ -63,6 +64,10 @@ stdenv.mkDerivation {
     # Linux scripts
     patchShebangs scripts
 
+  '' + lib.optionalString (lib.versionAtLeast kernel.version "6.3") ''
+    # perf-specific scripts
+    patchShebangs tools/perf/pmu-events
+  '' + ''
     cd tools/perf
 
     for x in util/build-id.c util/dso.c; do
@@ -105,6 +110,7 @@ stdenv.mkDerivation {
     elfutils
     newt
     slang
+    libtraceevent
     libunwind
     zlib
     openssl
@@ -121,7 +127,7 @@ stdenv.mkDerivation {
   ++ lib.optional withLibcap libcap
   ++ lib.optional (lib.versionAtLeast kernel.version "6.0") python3.pkgs.setuptools;
 
-  NIX_CFLAGS_COMPILE = toString [
+  env.NIX_CFLAGS_COMPILE = toString [
     "-Wno-error=cpp"
     "-Wno-error=bool-compare"
     "-Wno-error=deprecated-declarations"
@@ -142,7 +148,7 @@ stdenv.mkDerivation {
 
   preFixup = ''
     # Pull in 'objdump' into PATH to make annotations work.
-    # The embeded Python interpreter will search PATH to calculate the Python path configuration(Should be fixed by upstream).
+    # The embedded Python interpreter will search PATH to calculate the Python path configuration(Should be fixed by upstream).
     # Add python.interpreter to PATH for now.
     wrapProgram $out/bin/perf \
       --prefix PATH : ${lib.makeBinPath [ binutils-unwrapped python3 ]}

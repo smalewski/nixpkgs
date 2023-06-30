@@ -12,13 +12,13 @@
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "zsnes2";
-  version = "2.0.10";
+  version = "2.0.12";
 
   src = fetchFromGitHub {
     owner = "xyproto";
     repo = "zsnes";
     rev = finalAttrs.version;
-    hash = "sha256-QFPl3I2nFWMmgQRGxrlt4Vh5N4SygvBLjeFiQpgRr8o=";
+    hash = "sha256-Xz+9YgMpnHyno7vP67aut4tIyG/gTn7SnU2FO2QMND0=";
   };
 
   nativeBuildInputs = [
@@ -36,7 +36,7 @@ stdenv.mkDerivation (finalAttrs: {
 
   dontConfigure = true;
 
-  NIX_CFLAGS_COMPILE = [
+  env.NIX_CFLAGS_COMPILE = toString [
     # Until upstream fixes the issues...
     "-Wp,-D_FORTIFY_SOURCE=0"
   ];

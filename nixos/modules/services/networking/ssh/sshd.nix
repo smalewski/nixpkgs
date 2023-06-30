@@ -13,12 +13,13 @@ let
     else pkgs.buildPackages.openssh;
 
   # reports boolean as yes / no
-  mkValueStringSshd = v:
+  mkValueStringSshd = with lib; v:
         if isInt           v then toString v
         else if isString   v then v
         else if true  ==   v then "yes"
         else if false ==   v then "no"
-        else throw "unsupported type ${typeOf v}: ${(lib.generators.toPretty {}) v}";
+        else if isList     v then concatStringsSep "," v
+        else throw "unsupported type ${builtins.typeOf v}: ${(lib.generators.toPretty {}) v}";
 
   # dont use the "=" operator
   settingsFormat = (pkgs.formats.keyValue {
@@ -104,6 +105,11 @@ in
     (mkRenamedOptionModule [ "services" "openssh" "useDns" ] [  "services" "openssh" "settings" "UseDns" ])
     (mkRenamedOptionModule [ "services" "openssh" "permitRootLogin" ] [  "services" "openssh" "settings" "PermitRootLogin" ])
     (mkRenamedOptionModule [ "services" "openssh" "logLevel" ] [  "services" "openssh" "settings" "LogLevel" ])
+    (mkRenamedOptionModule [ "services" "openssh" "macs" ] [  "services" "openssh" "settings" "Macs" ])
+    (mkRenamedOptionModule [ "services" "openssh" "ciphers" ] [  "services" "openssh" "settings" "Ciphers" ])
+    (mkRenamedOptionModule [ "services" "openssh" "kexAlgorithms" ] [  "services" "openssh" "settings" "KexAlgorithms" ])
+    (mkRenamedOptionModule [ "services" "openssh" "gatewayPorts" ] [  "services" "openssh" "settings" "GatewayPorts" ])
+    (mkRenamedOptionModule [ "services" "openssh" "forwardX11" ] [  "services" "openssh" "settings" "X11Forwarding" ])
   ];
 
   ###### interface
@@ -128,14 +134,6 @@ in
           If set, {command}`sshd` is socket-activated; that
           is, instead of having it permanently running as a daemon,
           systemd will start an instance for each incoming connection.
-        '';
-      };
-
-      forwardX11 = mkOption {
-        type = types.bool;
-        default = false;
-        description = lib.mdDoc ''
-          Whether to allow X11 connections to be forwarded.
         '';
       };
 
@@ -164,16 +162,6 @@ in
         example = [ "-f AUTHPRIV" "-l INFO" ];
         description = lib.mdDoc ''
           Commandline flags to add to sftp-server.
-        '';
-      };
-
-      gatewayPorts = mkOption {
-        type = types.str;
-        default = "no";
-        description = lib.mdDoc ''
-          Specifies whether remote hosts are allowed to connect to
-          ports forwarded for the client.  See
-          {manpage}`sshd_config(5)`.
         '';
       };
 
@@ -286,72 +274,17 @@ in
         '';
       };
 
-      kexAlgorithms = mkOption {
-        type = types.listOf types.str;
-        default = [
-          "sntrup761x25519-sha512@openssh.com"
-          "curve25519-sha256"
-          "curve25519-sha256@libssh.org"
-          "diffie-hellman-group-exchange-sha256"
-        ];
-        description = lib.mdDoc ''
-          Allowed key exchange algorithms
-
-          Uses the lower bound recommended in both
-          <https://stribika.github.io/2015/01/04/secure-secure-shell.html>
-          and
-          <https://infosec.mozilla.org/guidelines/openssh#modern-openssh-67>
-        '';
-      };
-
-      ciphers = mkOption {
-        type = types.listOf types.str;
-        default = [
-          "chacha20-poly1305@openssh.com"
-          "aes256-gcm@openssh.com"
-          "aes128-gcm@openssh.com"
-          "aes256-ctr"
-          "aes192-ctr"
-          "aes128-ctr"
-        ];
-        description = lib.mdDoc ''
-          Allowed ciphers
-
-          Defaults to recommended settings from both
-          <https://stribika.github.io/2015/01/04/secure-secure-shell.html>
-          and
-          <https://infosec.mozilla.org/guidelines/openssh#modern-openssh-67>
-        '';
-      };
-
-      macs = mkOption {
-        type = types.listOf types.str;
-        default = [
-          "hmac-sha2-512-etm@openssh.com"
-          "hmac-sha2-256-etm@openssh.com"
-          "umac-128-etm@openssh.com"
-          "hmac-sha2-512"
-          "hmac-sha2-256"
-          "umac-128@openssh.com"
-        ];
-        description = lib.mdDoc ''
-          Allowed MACs
-
-          Defaults to recommended settings from both
-          <https://stribika.github.io/2015/01/04/secure-secure-shell.html>
-          and
-          <https://infosec.mozilla.org/guidelines/openssh#modern-openssh-67>
-        '';
-      };
 
 
       settings = mkOption {
         description = lib.mdDoc "Configuration for `sshd_config(5)`.";
         default = { };
-        example = literalExpression ''{
-          UseDns = true;
-          PasswordAuthentication = false;
-        }'';
+        example = literalExpression ''
+          {
+            UseDns = true;
+            PasswordAuthentication = false;
+          }
+        '';
         type = types.submodule ({name, ...}: {
           freeformType = settingsFormat.type;
           options = {
@@ -374,7 +307,13 @@ in
                 ~/.ssh/authorized_keys from and sshd_config Match Host directives.
               '';
             };
-
+            X11Forwarding = mkOption {
+              type = types.bool;
+              default = false;
+              description = lib.mdDoc ''
+                Whether to allow X11 connections to be forwarded.
+              '';
+            };
             PasswordAuthentication = mkOption {
               type = types.bool;
               default = true;
@@ -394,6 +333,74 @@ in
               default = true;
               description = lib.mdDoc ''
                 Specifies whether keyboard-interactive authentication is allowed.
+              '';
+            };
+            GatewayPorts = mkOption {
+              type = types.str;
+              default = "no";
+              description = lib.mdDoc ''
+                Specifies whether remote hosts are allowed to connect to
+                ports forwarded for the client.  See
+                {manpage}`sshd_config(5)`.
+              '';
+            };
+            KexAlgorithms = mkOption {
+              type = types.listOf types.str;
+              default = [
+                "sntrup761x25519-sha512@openssh.com"
+                "curve25519-sha256"
+                "curve25519-sha256@libssh.org"
+                "diffie-hellman-group-exchange-sha256"
+              ];
+              description = lib.mdDoc ''
+                Allowed key exchange algorithms
+
+                Uses the lower bound recommended in both
+                <https://stribika.github.io/2015/01/04/secure-secure-shell.html>
+                and
+                <https://infosec.mozilla.org/guidelines/openssh#modern-openssh-67>
+              '';
+            };
+            Macs = mkOption {
+              type = types.listOf types.str;
+              default = [
+                "hmac-sha2-512-etm@openssh.com"
+                "hmac-sha2-256-etm@openssh.com"
+                "umac-128-etm@openssh.com"
+              ];
+              description = lib.mdDoc ''
+                Allowed MACs
+
+                Defaults to recommended settings from both
+                <https://stribika.github.io/2015/01/04/secure-secure-shell.html>
+                and
+                <https://infosec.mozilla.org/guidelines/openssh#modern-openssh-67>
+              '';
+            };
+            StrictModes = mkOption {
+              type = types.bool;
+              default = true;
+              description = lib.mdDoc ''
+                Whether sshd should check file modes and ownership of directories
+              '';
+            };
+            Ciphers = mkOption {
+              type = types.listOf types.str;
+              default = [
+                "chacha20-poly1305@openssh.com"
+                "aes256-gcm@openssh.com"
+                "aes128-gcm@openssh.com"
+                "aes256-ctr"
+                "aes192-ctr"
+                "aes128-ctr"
+              ];
+              description = lib.mdDoc ''
+                Allowed ciphers
+
+                Defaults to recommended settings from both
+                <https://stribika.github.io/2015/01/04/secure-secure-shell.html>
+                and
+                <https://infosec.mozilla.org/guidelines/openssh#modern-openssh-67>
               '';
             };
           };
@@ -473,10 +480,10 @@ in
                       mkdir -m 0755 -p "$(dirname '${k.path}')"
                       ssh-keygen \
                         -t "${k.type}" \
-                        ${if k ? bits then "-b ${toString k.bits}" else ""} \
-                        ${if k ? rounds then "-a ${toString k.rounds}" else ""} \
-                        ${if k ? comment then "-C '${k.comment}'" else ""} \
-                        ${if k ? openSSHFormat && k.openSSHFormat then "-o" else ""} \
+                        ${optionalString (k ? bits) "-b ${toString k.bits}"} \
+                        ${optionalString (k ? rounds) "-a ${toString k.rounds}"} \
+                        ${optionalString (k ? comment) "-C '${k.comment}'"} \
+                        ${optionalString (k ? openSSHFormat && k.openSSHFormat) "-o"} \
                         -f "${k.path}" \
                         -N ""
                   fi
@@ -523,7 +530,7 @@ in
 
       };
 
-    networking.firewall.allowedTCPPorts = if cfg.openFirewall then cfg.ports else [];
+    networking.firewall.allowedTCPPorts = optionals cfg.openFirewall cfg.ports;
 
     security.pam.services.sshd =
       { startSession = true;
@@ -535,7 +542,7 @@ in
     # https://github.com/NixOS/nixpkgs/pull/10155
     # https://github.com/NixOS/nixpkgs/pull/41745
     services.openssh.authorizedKeysFiles =
-      [ "%h/.ssh/authorized_keys" "%h/.ssh/authorized_keys2" "/etc/ssh/authorized_keys.d/%u" ];
+      [ "%h/.ssh/authorized_keys" "/etc/ssh/authorized_keys.d/%u" ];
 
     services.openssh.extraConfig = mkOrder 0
       ''
@@ -549,23 +556,16 @@ in
         '') cfg.ports}
 
         ${concatMapStrings ({ port, addr, ... }: ''
-          ListenAddress ${addr}${if port != null then ":" + toString port else ""}
+          ListenAddress ${addr}${optionalString (port != null) (":" + toString port)}
         '') cfg.listenAddresses}
 
         ${optionalString cfgc.setXAuthLocation ''
             XAuthLocation ${pkgs.xorg.xauth}/bin/xauth
         ''}
-
-        X11Forwarding ${if cfg.forwardX11 then "yes" else "no"}
-
         ${optionalString cfg.allowSFTP ''
           Subsystem sftp ${cfg.sftpServerExecutable} ${concatStringsSep " " cfg.sftpFlags}
         ''}
-
-        GatewayPorts ${cfg.gatewayPorts}
-
         PrintMotd no # handled by pam_motd
-
         AuthorizedKeysFile ${toString cfg.authorizedKeysFiles}
         ${optionalString (cfg.authorizedKeysCommand != "none") ''
           AuthorizedKeysCommand ${cfg.authorizedKeysCommand}
@@ -575,19 +575,30 @@ in
         ${flip concatMapStrings cfg.hostKeys (k: ''
           HostKey ${k.path}
         '')}
-
-        KexAlgorithms ${concatStringsSep "," cfg.kexAlgorithms}
-        Ciphers ${concatStringsSep "," cfg.ciphers}
-        MACs ${concatStringsSep "," cfg.macs}
       '';
 
-    assertions = [{ assertion = if cfg.forwardX11 then cfgc.setXAuthLocation else true;
-                    message = "cannot enable X11 forwarding without setting xauth location";}]
+    assertions = [{ assertion = if cfg.settings.X11Forwarding then cfgc.setXAuthLocation else true;
+                    message = "cannot enable X11 forwarding without setting xauth location";}
+                  (let
+                    duplicates =
+                      # Filter out the groups with more than 1 element
+                      lib.filter (l: lib.length l > 1) (
+                        # Grab the groups, we don't care about the group identifiers
+                        lib.attrValues (
+                          # Group the settings that are the same in lower case
+                          lib.groupBy lib.strings.toLower (attrNames cfg.settings)
+                        )
+                      );
+                    formattedDuplicates = lib.concatMapStringsSep ", " (dupl: "(${lib.concatStringsSep ", " dupl})") duplicates;
+                  in
+                  {
+                    assertion = lib.length duplicates == 0;
+                    message = ''Duplicate sshd config key; does your capitalization match the option's? Duplicate keys: ${formattedDuplicates}'';
+                  })]
       ++ forEach cfg.listenAddresses ({ addr, ... }: {
         assertion = addr != null;
         message = "addr must be specified in each listenAddresses entry";
       });
-
   };
 
 }

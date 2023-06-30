@@ -1,5 +1,5 @@
 { lib
-, asynctest
+, stdenv
 , aiohttp
 , blinker
 , buildPythonPackage
@@ -9,7 +9,7 @@
 , httpx
 , jinja2
 , jsonschema
-, Logbook
+, logbook
 , mock
 , pytest-asyncio
 , pytest-bdd
@@ -30,7 +30,7 @@
 
 buildPythonPackage rec {
   pname = "elastic-apm";
-  version = "6.14.0";
+  version = "6.16.1";
   format = "setuptools";
 
   disabled = pythonOlder "3.8";
@@ -39,7 +39,7 @@ buildPythonPackage rec {
     owner = "elastic";
     repo = "apm-agent-python";
     rev = "refs/tags/v${version}";
-    hash = "sha256-T1TWILlJZffTISVt8YSi8ZYSXOHieh6SV55j8W333LQ=";
+    hash = "sha256-m/PjL8pltUpv/ewE/gksISsOhEVsyeWoq6yfd5c1j6s=";
   };
 
   propagatedBuildInputs = [
@@ -54,22 +54,18 @@ buildPythonPackage rec {
   ];
 
   nativeCheckInputs = [
-    pytestCheckHook
-  ];
-
-  checkInputs = [
-    asynctest
     ecs-logging
+    httpx
     jinja2
     jsonschema
-    Logbook
+    logbook
     mock
-    httpx
     pytest-asyncio
     pytest-bdd
-    pytest-mock
     pytest-localserver
+    pytest-mock
     pytest-random-order
+    pytestCheckHook
     sanic-testing
     structlog
     webob
@@ -82,6 +78,9 @@ buildPythonPackage rec {
   disabledTestPaths = [
     # Exclude tornado tests
     "tests/contrib/asyncio/tornado/tornado_tests.py"
+  ] ++ lib.optionals stdenv.isDarwin [
+    # Flaky tests on Darwin
+    "tests/utils/threading_tests.py"
   ];
 
   pythonImportsCheck = [
@@ -94,5 +93,6 @@ buildPythonPackage rec {
     changelog = "https://github.com/elastic/apm-agent-python/releases/tag/v${version}";
     license = with licenses; [ bsd3 ];
     maintainers = with maintainers; [ fab ];
+    mainProgram = "elasticapm-run";
   };
 }

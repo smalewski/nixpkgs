@@ -60,6 +60,7 @@ in {
         config.networking.resolvconf.package # for configuring DNS in some configs
         pkgs.procps     # for collecting running services (opt-in feature)
         pkgs.glibc      # for `getent` to look up user shells
+        pkgs.kmod       # required to pass tailscale's v6nat check
       ];
       serviceConfig.Environment = [
         "PORT=${toString cfg.port}"
@@ -82,8 +83,8 @@ in {
     };
 
     boot.kernel.sysctl = mkIf (cfg.useRoutingFeatures == "server" || cfg.useRoutingFeatures == "both") {
-      "net.ipv4.conf.all.forwarding" = mkDefault true;
-      "net.ipv6.conf.all.forwarding" = mkDefault true;
+      "net.ipv4.conf.all.forwarding" = mkOverride 97 true;
+      "net.ipv6.conf.all.forwarding" = mkOverride 97 true;
     };
 
     networking.firewall.checkReversePath = mkIf (cfg.useRoutingFeatures == "client" || cfg.useRoutingFeatures == "both") "loose";

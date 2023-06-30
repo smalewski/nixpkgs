@@ -2,16 +2,16 @@
 
 rustPlatform.buildRustPackage rec {
   pname = "dufs";
-  version = "0.31.0";
+  version = "0.34.2";
 
   src = fetchFromGitHub {
     owner = "sigoden";
     repo = pname;
     rev = "v${version}";
-    sha256 = "sha256-fR3CeF+ScvDoPJaevAAShUdZDDjD/ocZQl7dIk2jHso=";
+    sha256 = "sha256-NkH7w5HEQFhnovUmjN/qW5QZwO8mVQZMbhpNFkKtLTI=";
   };
 
-  cargoSha256 = "sha256-VH/eu0qLh59J6uyj0RSqqEhlwghYg/JPp6u54BQzLPo=";
+  cargoHash = "sha256-bUznaVyhZswLaXUgC+GUh5ZpJQW7Vkcoui6CO9ds22g=";
 
   nativeBuildInputs = lib.optionals stdenv.isLinux [
     pkg-config

@@ -46,11 +46,11 @@ let
 in
 stdenv.mkDerivation rec {
   pname = "go";
-  version = "1.20";
+  version = "1.20.5";
 
   src = fetchurl {
     url = "https://go.dev/dl/go${version}.src.tar.gz";
-    sha256 = "sha256-Oin/BCG+r2MpKSuKRjEcn78GyAAHfO3e9ft/jVsazjM=";
+    hash = "sha256-mhXBM7os+v55ZS9IFbYufPwmf2jfG5RUxqsqPKi5aog=";
   };
 
   strictDeps = true;
@@ -58,7 +58,7 @@ stdenv.mkDerivation rec {
     ++ lib.optionals stdenv.isLinux [ stdenv.cc.libc.out ]
     ++ lib.optionals (stdenv.hostPlatform.libc == "glibc") [ stdenv.cc.libc.static ];
 
-  depsTargetTargetPropagated = lib.optionals stdenv.isDarwin [ Foundation Security xcbuild ];
+  depsTargetTargetPropagated = lib.optionals stdenv.targetPlatform.isDarwin [ Foundation Security xcbuild ];
 
   depsBuildTarget = lib.optional isCross targetCC;
 
@@ -141,18 +141,18 @@ stdenv.mkDerivation rec {
     # Contains the wrong perl shebang when cross compiling,
     # since it is not used for anything we can deleted as well.
     rm src/regexp/syntax/make_perl_groups.pl
-  '' + (if (stdenv.buildPlatform != stdenv.hostPlatform) then ''
+  '' + (if (stdenv.buildPlatform.system != stdenv.hostPlatform.system) then ''
     mv bin/*_*/* bin
     rmdir bin/*_*
     ${lib.optionalString (!(GOHOSTARCH == GOARCH && GOOS == GOHOSTOS)) ''
       rm -rf pkg/${GOHOSTOS}_${GOHOSTARCH} pkg/tool/${GOHOSTOS}_${GOHOSTARCH}
     ''}
-  '' else if (stdenv.hostPlatform != stdenv.targetPlatform) then ''
+  '' else lib.optionalString (stdenv.hostPlatform.system != stdenv.targetPlatform.system) ''
     rm -rf bin/*_*
     ${lib.optionalString (!(GOHOSTARCH == GOARCH && GOOS == GOHOSTOS)) ''
       rm -rf pkg/${GOOS}_${GOARCH} pkg/tool/${GOOS}_${GOARCH}
     ''}
-  '' else "");
+  '');
 
   installPhase = ''
     runHook preInstall
@@ -172,6 +172,7 @@ stdenv.mkDerivation rec {
   };
 
   meta = with lib; {
+    changelog = "https://go.dev/doc/devel/release#go${lib.versions.majorMinor version}";
     description = "The Go Programming language";
     homepage = "https://go.dev/";
     license = licenses.bsd3;

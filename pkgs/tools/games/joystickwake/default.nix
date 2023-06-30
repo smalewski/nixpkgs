@@ -1,16 +1,16 @@
 { lib, python3, fetchFromGitHub }:
 python3.pkgs.buildPythonApplication rec {
   pname = "joystickwake";
-  version = "0.4";
+  version = "0.4.1";
 
   src = fetchFromGitHub {
     owner = "foresto";
     repo = pname;
     rev = "refs/tags/v${version}";
-    sha256 = "sha256-0rVVxaaAFHkmJeG3e181x7faTIeFwupplWepoyxc51g=";
+    sha256 = "sha256-qf1owRdBGyU3q9ZJAzDEcMlnHfeUMSXga4v6QXdxXO0=";
   };
 
-  propagatedBuildInputs = with python3.pkgs; [ pyudev xlib ];
+  propagatedBuildInputs = with python3.pkgs; [ dbus-next pyudev xlib ];
 
   postInstall = ''
     # autostart file

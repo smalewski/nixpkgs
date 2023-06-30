@@ -5,22 +5,24 @@
 , makeWrapper
 , openssh
 , libxcrypt
+, testers
+, shellhub-agent
 }:
 
 buildGoModule rec {
   pname = "shellhub-agent";
-  version = "0.10.8";
+  version = "0.12.3";
 
   src = fetchFromGitHub {
     owner = "shellhub-io";
     repo = "shellhub";
     rev = "v${version}";
-    sha256 = "BtD22Ss5PuVx2RVLQIsUeGBJBl5lh1XHJ0vcM2bOEwk=";
+    hash = "sha256-WKMy2JttXFRcW1yb5aQ6xe8BoSoN65K8Hlmac62+QPc=";
   };
 
   modRoot = "./agent";
 
-  vendorSha256 = "sha256-tvKiTQioj999oIUDHUSXTMXOh/LKoykzu8JEUnrelws=";
+  vendorHash = "sha256-BqzpQcL3U6SIrDW5NfBG0D2zyvv1zNu7uoOBYmKbF4Y=";
 
   ldflags = [ "-s" "-w" "-X main.AgentVersion=v${version}" ];
 
@@ -28,6 +30,12 @@ buildGoModule rec {
     updateScript = gitUpdater {
       rev-prefix = "v";
       ignoredVersions = ".(rc|beta).*";
+    };
+
+    tests.version = testers.testVersion {
+      package = shellhub-agent;
+      command = "agent --version";
+      version = "v${version}";
     };
   };
 

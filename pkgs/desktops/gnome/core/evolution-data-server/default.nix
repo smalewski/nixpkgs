@@ -31,7 +31,7 @@
 , openldap
 , enableOAuth2 ? stdenv.isLinux
 , webkitgtk_4_1
-, webkitgtk_5_0
+, webkitgtk_6_0
 , libaccounts-glib
 , json-glib
 , glib
@@ -50,13 +50,13 @@
 
 stdenv.mkDerivation rec {
   pname = "evolution-data-server";
-  version = "3.46.3";
+  version = "3.48.3";
 
   outputs = [ "out" "dev" ];
 
   src = fetchurl {
     url = "mirror://gnome/sources/evolution-data-server/${lib.versions.majorMinor version}/${pname}-${version}.tar.xz";
-    sha256 = "CTjiJ55c+8IgR2bKnT/qVwkRaZsHwQy+AaymKn6LK+4=";
+    sha256 = "tx5BLlL1Z8gzlLWSbfkrT09tLN3rrThKUXxyBnH62ZY=";
   };
 
   patches = [
@@ -111,7 +111,7 @@ stdenv.mkDerivation rec {
   ] ++ lib.optionals withGtk4 [
     gtk4
   ] ++ lib.optionals (withGtk4 && enableOAuth2) [
-    webkitgtk_5_0
+    webkitgtk_6_0
   ];
 
   propagatedBuildInputs = [

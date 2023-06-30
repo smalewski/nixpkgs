@@ -3,8 +3,6 @@ import ./make-test-python.nix ({ pkgs, lib, ... }: {
 
   meta = {
     maintainers = with lib.maintainers; [ OPNA2608 ];
-    # FIXME On ARM Miriway inside the VM doesn't receive keyboard inputs, why?
-    broken = pkgs.stdenv.hostPlatform.isAarch;
   };
 
   nodes.machine = { config, ... }: {
@@ -30,6 +28,7 @@ import ./make-test-python.nix ({ pkgs, lib, ... }: {
       enable = true;
       config = ''
         add-wayland-extensions=all
+        enable-x11=
 
         ctrl-alt=t:foot --maximized
         ctrl-alt=a:env WINIT_UNIX_BACKEND=x11 WAYLAND_DISPLAY=invalid alacritty --option window.startup_mode=maximized

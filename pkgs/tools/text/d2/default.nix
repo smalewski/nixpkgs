@@ -2,22 +2,25 @@
 , buildGoModule
 , fetchFromGitHub
 , installShellFiles
+, git
 , testers
 , d2
 }:
 
 buildGoModule rec {
   pname = "d2";
-  version = "0.1.6";
+  version = "0.5.1";
 
   src = fetchFromGitHub {
     owner = "terrastruct";
     repo = pname;
     rev = "v${version}";
-    hash = "sha256-bPEEL4t5R/2DnO1IKaTV5NIfT+RL9MVRuoBLlsSPJgM=";
+    hash = "sha256-Oq6bJ/cX+kDyVUVP/RpCIcNeWpT3HESUMmR6mEi9X4Q=";
   };
 
-  vendorHash = "sha256-IKISxtAo9zKV6nLGAUNjtNb/YzRK2QO7Wa4RSNthzPU=";
+  vendorHash = "sha256-SocBC/1LrdSQNfcNVa9nnPaq/UvLVIghHlUSJB7ImBk=";
+
+  excludedPackages = [ "./e2etests" ];
 
   ldflags = [
     "-s"
@@ -31,7 +34,12 @@ buildGoModule rec {
     installManPage ci/release/template/man/d2.1
   '';
 
-  subPackages = [ "." ];
+  nativeCheckInputs = [ git ];
+
+  preCheck = ''
+    # See https://github.com/terrastruct/d2/blob/master/docs/CONTRIBUTING.md#running-tests.
+    export TESTDATA_ACCEPT=1
+  '';
 
   passthru.tests.version = testers.testVersion { package = d2; };
 

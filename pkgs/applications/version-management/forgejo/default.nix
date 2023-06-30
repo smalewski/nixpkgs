@@ -1,35 +1,55 @@
 { bash
+, brotli
 , buildGoModule
-, common-updater-scripts
-, coreutils
-, curl
-, fetchurl
+, forgejo
 , git
 , gzip
-, jq
 , lib
 , makeWrapper
-, nix
+, nixosTests
 , openssh
 , pam
 , pamSupport ? true
 , sqliteSupport ? true
+, xorg
+, runCommand
 , stdenv
+, fetchFromGitea
+, buildNpmPackage
 , writeShellApplication
 }:
 
+let
+  frontend = buildNpmPackage rec {
+    pname = "forgejo-frontend";
+    inherit (forgejo) src version;
+
+    npmDepsHash = "sha256-dB/uBuS0kgaTwsPYnqklT450ejLHcPAqBdDs3JT8Uxg=";
+
+    patches = [
+      ./package-json-npm-build-frontend.patch
+    ];
+
+    # override npmInstallHook
+    installPhase = ''
+      mkdir $out
+      cp -R ./public $out/
+    '';
+  };
+in
 buildGoModule rec {
   pname = "forgejo";
-  version = "1.18.3-0";
+  version = "1.19.3-0";
 
-  src = fetchurl {
-    name = "${pname}-src-${version}.tar.gz";
-    # see https://codeberg.org/forgejo/forgejo/releases
-    url = "https://codeberg.org/attachments/384fd9ab-7c64-4c29-9b1b-cdb803c48103";
-    hash = "sha256-zBGd+wPJDw7bwRvAlscqbQHDG6po3dlbpYccfanbtyU=";
+  src = fetchFromGitea {
+    domain = "codeberg.org";
+    owner = "forgejo";
+    repo = "forgejo";
+    rev = "v${version}";
+    hash = "sha256-0T26EsU5lJ+Rxy/jSDn8nTk5IdHO8oK3LvN7tPArPgs=";
   };
 
-  vendorHash = null;
+  vendorHash = "sha256-bnLcHmwOh/fw6ecgsndX2BmVf11hJWllE+f2J8YSzec=";
 
   subPackages = [ "." ];
 
@@ -56,60 +76,47 @@ buildGoModule rec {
     "-X 'main.Tags=${lib.concatStringsSep " " tags}'"
   ];
 
+  preBuild = ''
+    go run build/merge-forgejo-locales.go
+  '';
+
   postInstall = ''
     mkdir $data
-    cp -R ./{public,templates,options} $data
+    cp -R ./{templates,options} ${frontend}/public $data
     mkdir -p $out
     cp -R ./options/locale $out/locale
     wrapProgram $out/bin/gitea \
       --prefix PATH : ${lib.makeBinPath [ bash git gzip openssh ]}
   '';
 
-  passthru.updateScript = lib.getExe (writeShellApplication {
-    name = "update-forgejo";
-    runtimeInputs = [
-      common-updater-scripts
-      coreutils
-      curl
-      jq
-      nix
-    ];
-    text = ''
-      releases=$(curl "https://codeberg.org/api/v1/repos/forgejo/forgejo/releases?draft=false&pre-release=false&limit=1" \
-        --silent \
-        --header "accept: application/json")
-
-      stable=$(jq '.[0]
-        | .tag_name[1:] as $version
-        | ("forgejo-src-\($version).tar.gz") as $filename
-        | { $version, html_url } + (.assets | map(select(.name | startswith($filename)) | {(.name | split(".") | last): .browser_download_url}) | add)' \
-        <<< "$releases")
-
-      archive_url=$(jq -r .gz <<< "$stable")
-      checksum_url=$(jq -r .sha256 <<< "$stable")
-      release_url=$(jq -r .html_url <<< "$stable")
-      version=$(jq -r .version <<< "$stable")
-
-      if [[ "${version}" = "$version" ]]; then
-        echo "No new version found (already at $version)"
-        exit 0
-      fi
-
-      echo "Release: $release_url"
-
-      sha256=$(curl "$checksum_url" --silent | cut --delimiter " " --fields 1)
-      sri_hash=$(nix hash to-sri --type sha256 "$sha256")
-
-      update-source-version "${pname}" "$version" "$sri_hash" "$archive_url"
-    '';
+  # $data is not available in go-modules.drv and preBuild isn't needed
+  overrideModAttrs = (_: {
+    postPatch = null;
+    preBuild = null;
   });
+
+  passthru = {
+    data-compressed = runCommand "forgejo-data-compressed" {
+      nativeBuildInputs = [ brotli xorg.lndir ];
+    } ''
+      mkdir $out
+      lndir ${forgejo.data}/ $out/
+
+      # Create static gzip and brotli files
+      find -L $out -type f -regextype posix-extended -iregex '.*\.(css|html|js|svg|ttf|txt)' \
+        -exec gzip --best --keep --force {} ';' \
+        -exec brotli --best --keep --no-copy-stat {} ';'
+    '';
+
+    tests = nixosTests.forgejo;
+  };
 
   meta = with lib; {
     description = "A self-hosted lightweight software forge";
     homepage = "https://forgejo.org";
     changelog = "https://codeberg.org/forgejo/forgejo/releases/tag/v${version}";
     license = licenses.mit;
-    maintainers = with maintainers; [ indeednotjames urandom ];
+    maintainers = with maintainers; [ emilylange urandom ];
     broken = stdenv.isDarwin;
     mainProgram = "gitea";
   };

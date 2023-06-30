@@ -7,20 +7,21 @@
 , alsa-lib
 , dbus
 , fontconfig
+, libsixel
 }:
 
 rustPlatform.buildRustPackage rec {
   pname = "spotify-player";
-  version = "0.10.0";
+  version = "0.14.1";
 
   src = fetchFromGitHub {
     owner = "aome510";
     repo = pname;
-    rev = "v${version}";
-    sha256 = "sha256-bHPWpx8EJibr2kNuzuGAQPZ0DE6qeJwIRYDy+NFS/PQ=";
+    rev = "refs/tags/v${version}";
+    hash = "sha256-+YPtu3hsKvk2KskVSpqcFufnWL5PxN8+xbkcz/JXW6g=";
   };
 
-  cargoSha256 = "sha256-QeQ3PYI5RmbJ+VQ9hLSTXgQXVVoID5zbRqSTrbWzVy8=";
+  cargoHash = "sha256-WgQ+v9dJyriqq7+WpXpPhjdwm2Sr0jozA1oW2inSPik=";
 
   nativeBuildInputs = [
     pkg-config
@@ -32,6 +33,7 @@ rustPlatform.buildRustPackage rec {
     alsa-lib
     dbus
     fontconfig
+    libsixel
   ];
 
   buildNoDefaultFeatures = true;
@@ -41,11 +43,16 @@ rustPlatform.buildRustPackage rec {
     "media-control"
     "image"
     "lyric-finder"
+    "daemon"
+    "notify"
+    "streaming"
+    "sixel"
   ];
 
   meta = with lib; {
     description = "A command driven spotify player";
     homepage = "https://github.com/aome510/spotify-player";
+    changelog = "https://github.com/aome510/spotify-player/releases/tag/v${version}";
     mainProgram = "spotify_player";
     license = licenses.mit;
     maintainers = with maintainers; [ dit7ya ];

@@ -1,7 +1,8 @@
-{ lib, stdenv, callPackage, fetchFromGitHub, autoreconfHook, pkg-config, makeWrapper
+{ lib, stdenv, fetchFromGitHub, autoreconfHook, pkg-config, makeWrapper
 , CoreFoundation, IOKit, libossp_uuid
 , nixosTests
-, curl, jemalloc, libuv, zlib
+, netdata-go-plugins
+, bash, curl, jemalloc, libuv, zlib, libyaml
 , libcap, libuuid, lm_sensors, protobuf
 , withCups ? false, cups
 , withDBengine ? true, lz4
@@ -14,24 +15,24 @@
 , withDebug ? false
 }:
 
-let
-  go-d-plugin = callPackage ./go.d.plugin.nix {};
-in stdenv.mkDerivation rec {
-  version = "1.37.1";
+stdenv.mkDerivation rec {
+  # Don't forget to update go.d.plugin.nix as well
+  version = "1.40.0";
   pname = "netdata";
 
   src = fetchFromGitHub {
     owner = "netdata";
     repo = "netdata";
     rev = "v${version}";
-    sha256 = "sha256-SsrdjFENPkI7Ed1gKt28sygJ5NgZ5un+5baIQ3Kv7yE=";
+    sha256 = "sha256-phPfbmzOVOLBCD29tg5DAak+Q2548iqiE1ZXbEkBhzc=";
     fetchSubmodules = true;
   };
 
   strictDeps = true;
 
   nativeBuildInputs = [ autoreconfHook pkg-config makeWrapper protobuf ];
-  buildInputs = [ curl jemalloc libuv zlib ]
+  # bash is only used to rewrite shebangs
+  buildInputs = [ bash curl jemalloc libuv zlib libyaml ]
     ++ lib.optionals stdenv.isDarwin [ CoreFoundation IOKit libossp_uuid ]
     ++ lib.optionals (!stdenv.isDarwin) [ libcap libuuid ]
     ++ lib.optionals withCups [ cups ]
@@ -64,13 +65,14 @@ in stdenv.mkDerivation rec {
   # to bootstrap tools:
   #   https://github.com/NixOS/nixpkgs/pull/175719
   # We pick zlib.dev as a simple canary package with pkg-config input.
-  disallowedReferences = [ zlib.dev ];
+  disallowedReferences = if withDebug then [] else [ zlib.dev ];
 
-  NIX_CFLAGS_COMPILE = lib.optionalString withDebug "-O1 -ggdb -DNETDATA_INTERNAL_CHECKS=1";
+  donStrip = withDebug;
+  env.NIX_CFLAGS_COMPILE = lib.optionalString withDebug "-O1 -ggdb -DNETDATA_INTERNAL_CHECKS=1";
 
   postInstall = ''
-    ln -s ${go-d-plugin}/lib/netdata/conf.d/* $out/lib/netdata/conf.d
-    ln -s ${go-d-plugin}/bin/godplugin $out/libexec/netdata/plugins.d/go.d.plugin
+    ln -s ${netdata-go-plugins}/lib/netdata/conf.d/* $out/lib/netdata/conf.d
+    ln -s ${netdata-go-plugins}/bin/godplugin $out/libexec/netdata/plugins.d/go.d.plugin
   '' + lib.optionalString (!stdenv.isDarwin) ''
     # rename this plugin so netdata will look for setuid wrapper
     mv $out/libexec/netdata/plugins.d/apps.plugin \
@@ -105,6 +107,7 @@ in stdenv.mkDerivation rec {
 
   postFixup = ''
     wrapProgram $out/bin/netdata-claim.sh --prefix PATH : ${lib.makeBinPath [ openssl ]}
+    wrapProgram $out/libexec/netdata/plugins.d/cgroup-network-helper.sh --prefix PATH : ${lib.makeBinPath [ bash ]}
   '';
 
   enableParallelBuild = true;
@@ -118,8 +121,9 @@ in stdenv.mkDerivation rec {
     broken = stdenv.isDarwin || stdenv.buildPlatform != stdenv.hostPlatform;
     description = "Real-time performance monitoring tool";
     homepage = "https://www.netdata.cloud/";
+    changelog = "https://github.com/netdata/netdata/releases/tag/v${version}";
     license = licenses.gpl3Plus;
     platforms = platforms.unix;
-    maintainers = [ ];
+    maintainers = with maintainers; [ raitobezarius ];
   };
 }

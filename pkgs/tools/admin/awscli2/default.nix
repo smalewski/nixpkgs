@@ -9,31 +9,29 @@
 }:
 
 let
-  py = python3.override {
-    packageOverrides = self: super: {
-      prompt-toolkit = super.prompt-toolkit.overridePythonAttrs (oldAttrs: rec {
-        version = "3.0.28";
-        src = self.fetchPypi {
-          pname = "prompt_toolkit";
-          inherit version;
-          hash = "sha256-nxzRax6GwpaPJRnX+zHdnWaZFvUVYSwmnRTp7VK1FlA=";
-        };
-      });
-    };
+  py = python3 // {
+    pkgs = python3.pkgs.overrideScope (self: super: {
+      # nothing right now
+    });
   };
 
 in
 with py.pkgs; buildPythonApplication rec {
   pname = "awscli2";
-  version = "2.9.21"; # N.B: if you change this, check if overrides are still up-to-date
+  version = "2.12.5"; # N.B: if you change this, check if overrides are still up-to-date
   format = "pyproject";
 
   src = fetchFromGitHub {
     owner = "aws";
     repo = "aws-cli";
     rev = version;
-    hash = "sha256-/CMV6eCNm2gF9HhdoTo2TUUy7I4NF9Fb+6l2biGIbkE=";
+    hash = "sha256-KrNVVmH0sfk2WaHlAcc2ElO23vyxG4u777twvFKBAD4=";
   };
+
+  postPatch = ''
+    substituteInPlace requirements/bootstrap.txt \
+      --replace "pip>=22.0.0,<23.0.0" "pip>=22.0.0,<24.0.0"
+  '';
 
   nativeBuildInputs = [
     flit-core
@@ -62,13 +60,6 @@ with py.pkgs; buildPythonApplication rec {
     mock
     pytestCheckHook
   ];
-
-  postPatch = ''
-    sed -i pyproject.toml \
-      -e 's/colorama.*/colorama",/' \
-      -e 's/cryptography.*/cryptography",/' \
-      -e 's/distro.*/distro",/'
-  '';
 
   postInstall = ''
     mkdir -p $out/${python3.sitePackages}/awscli/data

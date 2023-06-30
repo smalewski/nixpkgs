@@ -32,8 +32,7 @@ in
       };
 
       swapDevices = lib.mkOption {
-        default = 0;
-        example = 1;
+        default = 1;
         type = lib.types.int;
         description = lib.mdDoc ''
           Number of zram devices to be used as swap, recommended is 1.
@@ -83,11 +82,29 @@ in
           {command}`cat /sys/class/block/zram*/comp_algorithm`
         '';
       };
+
+      writebackDevice = lib.mkOption {
+        default = null;
+        example = "/dev/zvol/tarta-zoot/swap-writeback";
+        type = lib.types.nullOr lib.types.path;
+        description = lib.mdDoc ''
+          Write incompressible pages to this device,
+          as there's no gain from keeping them in RAM.
+        '';
+      };
     };
 
   };
 
   config = lib.mkIf cfg.enable {
+
+    assertions = [
+      {
+        assertion = cfg.writebackDevice == null || cfg.swapDevices <= 1;
+        message = "A single writeback device cannot be shared among multiple zram devices";
+      }
+    ];
+
 
     system.requiredKernelConfig = with config.lib.kernelConfig; [
       (isModule "ZRAM")
@@ -113,6 +130,8 @@ in
                 zram-size = if cfg.memoryMax != null then "min(${size}, ${toString cfg.memoryMax} / 1024 / 1024)" else size;
                 compression-algorithm = cfg.algorithm;
                 swap-priority = cfg.priority;
+              } // lib.optionalAttrs (cfg.writebackDevice != null) {
+                writeback-device = cfg.writebackDevice;
               };
           })
           devices));

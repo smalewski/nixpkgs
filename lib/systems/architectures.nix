@@ -18,6 +18,7 @@ rec {
     cascadelake    = [ "sse3" "ssse3" "sse4_1" "sse4_2"         "aes" "avx" "avx2" "avx512" "fma"        ];
     cooperlake     = [ "sse3" "ssse3" "sse4_1" "sse4_2"         "aes" "avx" "avx2" "avx512" "fma"        ];
     tigerlake      = [ "sse3" "ssse3" "sse4_1" "sse4_2"         "aes" "avx" "avx2" "avx512" "fma"        ];
+    alderlake      = [ "sse3" "ssse3" "sse4_1" "sse4_2"         "aes" "avx" "avx2"          "fma"        ];
     # x86_64 AMD
     btver1         = [ "sse3" "ssse3" "sse4_1" "sse4_2"                                                  ];
     btver2         = [ "sse3" "ssse3" "sse4_1" "sse4_2"         "aes" "avx"                              ];
@@ -28,6 +29,7 @@ rec {
     znver1         = [ "sse3" "ssse3" "sse4_1" "sse4_2" "sse4a" "aes" "avx" "avx2"          "fma"        ];
     znver2         = [ "sse3" "ssse3" "sse4_1" "sse4_2" "sse4a" "aes" "avx" "avx2"          "fma"        ];
     znver3         = [ "sse3" "ssse3" "sse4_1" "sse4_2" "sse4a" "aes" "avx" "avx2"          "fma"        ];
+    znver4         = [ "sse3" "ssse3" "sse4_1" "sse4_2" "sse4a" "aes" "avx" "avx2" "avx512" "fma"        ];
     # other
     armv5te        = [ ];
     armv6          = [ ];
@@ -40,14 +42,23 @@ rec {
   # a superior CPU has all the features of an inferior and is able to build and test code for it
   inferiors = {
     # x86_64 Intel
+    # https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html
     default        = [ ];
     westmere       = [ ];
-    sandybridge    = [ "westmere"    ] ++ inferiors.westmere;
-    ivybridge      = [ "sandybridge" ] ++ inferiors.sandybridge;
-    haswell        = [ "ivybridge"   ] ++ inferiors.ivybridge;
-    broadwell      = [ "haswell"     ] ++ inferiors.haswell;
-    skylake        = [ "broadwell"   ] ++ inferiors.broadwell;
-    skylake-avx512 = [ "skylake"     ] ++ inferiors.skylake;
+    sandybridge    = [ "westmere"       ] ++ inferiors.westmere;
+    ivybridge      = [ "sandybridge"    ] ++ inferiors.sandybridge;
+    haswell        = [ "ivybridge"      ] ++ inferiors.ivybridge;
+    broadwell      = [ "haswell"        ] ++ inferiors.haswell;
+    skylake        = [ "broadwell"      ] ++ inferiors.broadwell;
+    skylake-avx512 = [ "skylake"        ] ++ inferiors.skylake;
+    cannonlake     = [ "skylake-avx512" ] ++ inferiors.skylake-avx512;
+    icelake-client = [ "cannonlake"     ] ++ inferiors.cannonlake;
+    icelake-server = [ "icelake-client" ] ++ inferiors.icelake-client;
+    cascadelake    = [ "skylake-avx512" ] ++ inferiors.cannonlake;
+    cooperlake     = [ "cascadelake"    ] ++ inferiors.cascadelake;
+    tigerlake      = [ "icelake-server" ] ++ inferiors.icelake-server;
+    # CX16 does not exist on alderlake, while it does on nearly all other intel CPUs
+    alderlake      = [ ];
 
     # x86_64 AMD
     # TODO: fill this (need testing)
@@ -79,6 +90,7 @@ rec {
     znver1         = [ "skylake" ] ++ inferiors.skylake;
     znver2         = [ "znver1"  ] ++ inferiors.znver1;
     znver3         = [ "znver2"  ] ++ inferiors.znver2;
+    znver4         = [ "znver3"  ] ++ inferiors.znver3;
 
     # other
     armv5te        = [ ];

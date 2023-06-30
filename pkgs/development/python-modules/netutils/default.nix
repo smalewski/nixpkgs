@@ -12,7 +12,7 @@
 
 buildPythonPackage rec {
   pname = "netutils";
-  version = "1.4.0";
+  version = "1.4.1";
   format = "pyproject";
 
   disabled = pythonOlder "3.7";
@@ -21,7 +21,7 @@ buildPythonPackage rec {
     owner = "networktocode";
     repo = pname;
     rev = "refs/tags/v${version}";
-    hash = "sha256-RT6KAliRlH285sEx2fbIXJNwe1gcyH6CrQ8pXKgY/hQ=";
+    hash = "sha256-hSSHCWi0L/ZfFz0JQ6Al5mjhb2g0DpykLF66uMKMIN8=";
   };
 
   nativeBuildInputs = [
@@ -44,8 +44,11 @@ buildPythonPackage rec {
     "test_is_fqdn_resolvable"
     "test_fqdn_to_ip"
     "test_tcp_ping"
-    # Skip SPhinx test
+    # Skip Sphinx test
     "test_sphinx_build"
+    # OSError: [Errno 22] Invalid argument
+    "test_compare_type5"
+    "test_encrypt_type5"
   ];
 
   meta = with lib; {

@@ -85,7 +85,7 @@ stdenv.mkDerivation (
   // removeAttrs args [ "lib" ] # Propagating lib causes the evaluation to fail, because lib is a function that can't be converted to a string
 
   // {
-    name = name + (if src ? version then "-" + src.version else "");
+    name = name + (lib.optionalString (src ? version) "-${src.version}");
 
     postHook = ''
       . ${./functions.sh}
@@ -140,13 +140,13 @@ stdenv.mkDerivation (
       (lib.optional doCoverityAnalysis args.cov-build) ++
       (lib.optional doCoverityAnalysis args.xz);
 
-    lcovFilter = ["/nix/store/*"] ++ lcovFilter;
+    lcovFilter = ["${builtins.storeDir}/*"] ++ lcovFilter;
 
     inherit lcovExtraTraceFiles;
 
     postPhases = postPhases ++ ["finalPhase"];
 
-    meta = (if args ? meta then args.meta else {}) // {
+    meta = (lib.optionalAttrs (args ? meta) args.meta) // {
       description = if doCoverageAnalysis then "Coverage analysis" else "Nix package for ${stdenv.hostPlatform.system}";
     };
 
@@ -167,7 +167,7 @@ stdenv.mkDerivation (
 
           echo "building out of source tree, from \`$PWD'..."
 
-          ${if preConfigure != null then preConfigure else ""}
+          ${lib.optionalString (preConfigure != null) preConfigure}
        '';
    }
    else {})

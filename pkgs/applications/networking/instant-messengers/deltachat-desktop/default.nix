@@ -5,7 +5,6 @@
 , buildGoModule
 , esbuild
 , fetchFromGitHub
-, fetchpatch
 , libdeltachat
 , makeDesktopItem
 , makeWrapper
@@ -13,27 +12,12 @@
 , pkg-config
 , python3
 , roboto
-, rustPlatform
 , sqlcipher
 , stdenv
 , CoreServices
 }:
 
 let
-  libdeltachat' = libdeltachat.overrideAttrs (old: rec {
-    version = "1.107.0";
-    src = fetchFromGitHub {
-      owner = "deltachat";
-      repo = "deltachat-core-rust";
-      rev = version;
-      hash = "sha256-fjiS7GZy1BLgmxu4LFOWgucORcVx+9KleQcga+hRkSY=";
-    };
-    cargoDeps = rustPlatform.fetchCargoTarball {
-      inherit src;
-      name = "${old.pname}-${version}";
-      hash = "sha256-7XhSI/C0GEmsaL0UupvufB1bfPGbzSQJH720Y4/Do3o=";
-    };
-  });
   esbuild' = esbuild.override {
     buildGoModule = args: buildGoModule (args // rec {
       version = "0.14.54";
@@ -46,18 +30,19 @@ let
       vendorHash = "sha256-+BfxCyg0KkDQpHt/wycy/8CTG6YBA/VJvJFhhzUnSiQ=";
     });
   };
-in buildNpmPackage rec {
+in
+buildNpmPackage rec {
   pname = "deltachat-desktop";
-  version = "1.34.3";
+  version = "1.38.1";
 
   src = fetchFromGitHub {
     owner = "deltachat";
     repo = "deltachat-desktop";
     rev = "v${version}";
-    hash = "sha256-6WZJD8lMsk1WNguMkXygBCTVpOzNkNuVZJ3Ygv6VBkM=";
+    hash = "sha256-nXYXjq6bLGvH4m8ECwxfkcUjOsUUj07bt3NFb3oD0Gw=";
   };
 
-  npmDepsHash = "sha256-B91yQ/xi8+uyOllqYR7lZTfLBpJvZat1cIIJk9TkM/c=";
+  npmDepsHash = "sha256-fQKFSWljHHPp1A8lcxVxrMVESuTiB3GkSWDb98yCZz4=";
 
   nativeBuildInputs = [
     makeWrapper
@@ -68,15 +53,17 @@ in buildNpmPackage rec {
   ];
 
   buildInputs = [
-    libdeltachat'
+    libdeltachat
   ] ++ lib.optionals stdenv.isDarwin [
     CoreServices
   ];
 
-  ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
-  ESBUILD_BINARY_PATH = "${esbuild'}/bin/esbuild";
-  USE_SYSTEM_LIBDELTACHAT = "true";
-  VERSION_INFO_GIT_REF = src.rev;
+  env = {
+    ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
+    ESBUILD_BINARY_PATH = "${esbuild'}/bin/esbuild";
+    USE_SYSTEM_LIBDELTACHAT = "true";
+    VERSION_INFO_GIT_REF = src.rev;
+  };
 
   preBuild = ''
     rm -r node_modules/deltachat-node/node/prebuilds

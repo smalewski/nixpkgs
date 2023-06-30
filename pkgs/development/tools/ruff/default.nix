@@ -4,20 +4,29 @@
 , installShellFiles
 , stdenv
 , darwin
+  # tests
+, ruff-lsp
 }:
 
 rustPlatform.buildRustPackage rec {
   pname = "ruff";
-  version = "0.0.241";
+  version = "0.0.275";
 
   src = fetchFromGitHub {
-    owner = "charliermarsh";
+    owner = "astral-sh";
     repo = pname;
     rev = "v${version}";
-    sha256 = "sha256-yrwrkU19LBM3gac70Y1UamZTdamuJdrMX4U88zGgJJs=";
+    hash = "sha256-HsoycugHzgudY3Aixv5INlOLTjLMzP+gKMMKIreiODs=";
   };
 
-  cargoSha256 = "sha256-RzGYh0zspP+sG7k+XwDy9kaTIGIEoOEV3ZoqVf0X0GA=";
+  cargoLock = {
+    lockFile = ./Cargo.lock;
+    outputHashes = {
+      "libcst-0.1.0" = "sha256-jG9jYJP4reACkFLrQBWOYH6nbKniNyFVItD0cTZ+nW0=";
+      "ruff_text_size-0.0.0" = "sha256-oIMZ+7oCID0Ud9Ss6hZjJDvAv7wepyODU31Pb3EOxiM=";
+      "unicode_names2-0.6.0" = "sha256-eWg9+ISm/vztB0KIdjhq5il2ZnwGJQCleCYfznCI3Wg=";
+    };
+  };
 
   nativeBuildInputs = [
     installShellFiles
@@ -27,8 +36,14 @@ rustPlatform.buildRustPackage rec {
     darwin.apple_sdk.frameworks.CoreServices
   ];
 
-  # building tests fails with `undefined symbols`
-  doCheck = false;
+  cargoBuildFlags = [ "--package=ruff_cli" ];
+  cargoTestFlags = cargoBuildFlags;
+
+  preBuild = lib.optionalString (stdenv.isDarwin && stdenv.isx86_64) ''
+    # See https://github.com/jemalloc/jemalloc/issues/1997
+    # Using a value of 48 should work on both emulated and native x86_64-darwin.
+    export JEMALLOC_SYS_WITH_LG_VADDR=48
+  '';
 
   postInstall = ''
     installShellCompletion --cmd ruff \
@@ -37,10 +52,14 @@ rustPlatform.buildRustPackage rec {
       --zsh <($out/bin/ruff generate-shell-completion zsh)
   '';
 
+  passthru.tests = {
+    inherit ruff-lsp;
+  };
+
   meta = with lib; {
     description = "An extremely fast Python linter";
-    homepage = "https://github.com/charliermarsh/ruff";
-    changelog = "https://github.com/charliermarsh/ruff/releases/tag/v${version}";
+    homepage = "https://github.com/astral-sh/ruff";
+    changelog = "https://github.com/astral-sh/ruff/releases/tag/v${version}";
     license = licenses.mit;
     maintainers = with maintainers; [ figsoda ];
   };

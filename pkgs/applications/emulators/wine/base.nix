@@ -1,7 +1,7 @@
-{ stdenv, lib, pkgArches, callPackage, makeSetupHook,
+{ stdenv, lib, pkgArches, makeSetupHook,
   pname, version, src, mingwGccs, monos, geckos, platforms,
   bison, flex, fontforge, makeWrapper, pkg-config,
-  autoconf, hexdump, perl, nixosTests,
+  nixosTests,
   supportFlags,
   patches,
   moltenvk,
@@ -54,11 +54,6 @@ stdenv.mkDerivation ((lib.optionalAttrs (buildScript != null) {
     fontforge
     makeWrapper
     pkg-config
-
-    # Required by staging
-    autoconf
-    hexdump
-    perl
   ]
   ++ lib.optionals supportFlags.mingwSupport (mingwGccs
     ++ lib.optional stdenv.isDarwin setupHookDarwin);
@@ -89,8 +84,7 @@ stdenv.mkDerivation ((lib.optionalAttrs (buildScript != null) {
   ++ lib.optional sdlSupport             pkgs.SDL2
   ++ lib.optional usbSupport             pkgs.libusb1
   ++ lib.optionals gstreamerSupport      (with pkgs.gst_all_1;
-    [ gstreamer gst-plugins-base gst-plugins-good gst-plugins-ugly gst-libav
-    (gst-plugins-bad.override { enableZbar = false; }) ])
+    [ gstreamer gst-plugins-base gst-plugins-good gst-plugins-ugly gst-libav gst-plugins-bad ])
   ++ lib.optionals gtkSupport    [ pkgs.gtk3 pkgs.glib ]
   ++ lib.optionals openclSupport [ pkgs.opencl-headers pkgs.ocl-icd ]
   ++ lib.optionals tlsSupport    [ pkgs.openssl pkgs.gnutls ]
@@ -108,9 +102,13 @@ stdenv.mkDerivation ((lib.optionalAttrs (buildScript != null) {
   ])));
 
   patches = [ ]
-    # Wine requires `MTLDevice.registryID` for `winemac.drv`, but that property is not available
-    # in the 10.12 SDK (current SDK on x86_64-darwin). Work around that by using selector syntax.
-    ++ lib.optional stdenv.isDarwin ./darwin-metal-compat.patch
+    ++ lib.optionals stdenv.isDarwin [
+      # Wine requires `MTLDevice.registryID` for `winemac.drv`, but that property is not available
+      # in the 10.12 SDK (current SDK on x86_64-darwin). Work around that by using selector syntax.
+      ./darwin-metal-compat.patch
+      # Wine requires `qos.h`, which is not included by default on the 10.12 SDK in nixpkgs.
+      ./darwin-qos.patch
+    ]
     ++ patches';
 
   configureFlags = prevConfigFlags

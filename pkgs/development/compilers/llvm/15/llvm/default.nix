@@ -9,6 +9,7 @@
 , python3
 , python3Packages
 , libffi
+, enableGoldPlugin ? libbfd.hasPluginAPI
 , libbfd
 , libpfm
 , libxml2
@@ -141,6 +142,13 @@ in stdenv.mkDerivation (rec {
     # It's not clear to me why this isn't an issue for LLVM developers running
     # on macOS (nothing about this _seems_ nix specific)..
     ./lit-shell-script-runner-set-dyld-library-path.patch
+
+    # Fix musl build.
+    (fetchpatch {
+      url = "https://github.com/llvm/llvm-project/commit/5cd554303ead0f8891eee3cd6d25cb07f5a7bf67.patch";
+      relative = "llvm";
+      hash = "sha256-XPbvNJ45SzjMGlNUgt/IgEvM2dHQpDOe6woUJY+nUYA=";
+    })
   ] ++ lib.optionals enablePolly [
     ./gnu-install-dirs-polly.patch
 
@@ -327,7 +335,7 @@ in stdenv.mkDerivation (rec {
     "-DSPHINX_OUTPUT_MAN=ON"
     "-DSPHINX_OUTPUT_HTML=OFF"
     "-DSPHINX_WARNINGS_AS_ERRORS=OFF"
-  ] ++ optionals (!isDarwin) [
+  ] ++ optionals (enableGoldPlugin) [
     "-DLLVM_BINUTILS_INCDIR=${libbfd.dev}/include"
   ] ++ optionals isDarwin [
     "-DLLVM_ENABLE_LIBCXX=ON"

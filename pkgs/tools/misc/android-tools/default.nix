@@ -9,11 +9,11 @@ in
 
 stdenv.mkDerivation rec {
   pname = "android-tools";
-  version = "33.0.3p2";
+  version = "34.0.1";
 
   src = fetchurl {
     url = "https://github.com/nmeum/android-tools/releases/download/${version}/android-tools-${version}.tar.xz";
-    hash = "sha256-a/a1LXOJ55/JK2PMIGRR7kL8T32naddpIhk+mNdfVgQ=";
+    hash = "sha256-YCNOy8oZoXp+L0akWBlg1kW3xVuHDZJKIUlMdqb1SOw=";
   };
 
   nativeBuildInputs = [ cmake pkg-config perl go ];

@@ -1,4 +1,4 @@
-{ lib, stdenv, fetchFromGitHub, python3, openssl, rustPlatform
+{ lib, stdenv, fetchFromGitHub, python3, openssl, cargo, rustPlatform, rustc
 , enableSystemd ? lib.meta.availableOn stdenv.hostPlatform python3.pkgs.systemd
 , nixosTests
 , enableRedis ? true
@@ -12,20 +12,20 @@ in
 with python3.pkgs;
 buildPythonApplication rec {
   pname = "matrix-synapse";
-  version = "1.76.0";
+  version = "1.86.0";
   format = "pyproject";
 
   src = fetchFromGitHub {
     owner = "matrix-org";
     repo = "synapse";
     rev = "v${version}";
-    hash = "sha256-kPc6T8yLe1TDxPKLnK/TcU+RUxAVIq8qsr5JQXCXyjM=";
+    hash = "sha256-vSNAISWTTT3IAeA8hxQhQNp9T3soey4vgh7v+BxI+K0=";
   };
 
   cargoDeps = rustPlatform.fetchCargoTarball {
     inherit src;
     name = "${pname}-${version}";
-    hash = "sha256-tXtnVYH9uWu0nHHx53PgML92NWl3qcAcnFKhiijvQBc=";
+    hash = "sha256-lPLhh5FkxpBUQ5UH6eAfUIyGvHIcZHmbYBT5QUW/W4k=";
   };
 
   postPatch = ''
@@ -38,10 +38,9 @@ buildPythonApplication rec {
     poetry-core
     rustPlatform.cargoSetupHook
     setuptools-rust
-  ] ++ (with rustPlatform.rust; [
     cargo
     rustc
-  ]);
+  ];
 
   buildInputs = [ openssl ];
 
@@ -51,8 +50,8 @@ buildPythonApplication rec {
     bleach
     canonicaljson
     daemonize
-    frozendict
     ijson
+    immutabledict
     jinja2
     jsonschema
     lxml
@@ -67,7 +66,6 @@ buildPythonApplication rec {
     pyasn1
     pydantic
     pyicu
-    pyjwt
     pymacaroons
     pynacl
     pyopenssl
@@ -88,13 +86,13 @@ buildPythonApplication rec {
 
   doCheck = !stdenv.isDarwin;
 
-  checkPhase = ''
+  checkPhase = let testFlags = lib.optionalString (!stdenv.isAarch64) "-j $NIX_BUILD_CORES"; in ''
     runHook preCheck
 
     # remove src module, so tests use the installed module instead
     rm -rf ./synapse
 
-    PYTHONPATH=".:$PYTHONPATH" ${python3.interpreter} -m twisted.trial -j $NIX_BUILD_CORES tests
+    PYTHONPATH=".:$PYTHONPATH" ${python3.interpreter} -m twisted.trial ${testFlags} tests
 
     runHook postCheck
   '';

@@ -20,6 +20,7 @@
 , librsvg
 , libvpx
 , libwebp
+, lz4
 , nv-codec-headers-10
 , nvidia_x11 ? null
 , pam
@@ -68,11 +69,11 @@ let
   '';
 in buildPythonApplication rec {
   pname = "xpra";
-  version = "4.3.3";
+  version = "4.4.6";
 
   src = fetchurl {
     url = "https://xpra.org/src/${pname}-${version}.tar.xz";
-    hash = "sha256-J6zzkho0A1faCVzS/0wDlbgLtJmyPrnBkEcR7kDld7A=";
+    hash = "sha256-BWf3nypfSrYCzpJ0OfBkecoHGbG1lEgu5jLZhfkIejQ=";
   };
 
   patches = [
@@ -122,6 +123,7 @@ in buildPythonApplication rec {
     librsvg
     libvpx
     libwebp
+    lz4
     pam
     pango
     x264
@@ -156,7 +158,7 @@ in buildPythonApplication rec {
   ]);
 
   # error: 'import_cairo' defined but not used
-  NIX_CFLAGS_COMPILE = "-Wno-error=unused-function";
+  env.NIX_CFLAGS_COMPILE = "-Wno-error=unused-function";
 
   setupPyBuildFlags = [
     "--with-Xdummy"
@@ -188,6 +190,7 @@ in buildPythonApplication rec {
   postInstall = ''
     # append module paths to xorg.conf
     cat ${xorgModulePaths} >> $out/etc/xpra/xorg.conf
+    cat ${xorgModulePaths} >> $out/etc/xpra/xorg-uinput.conf
 
     # make application icon visible to desktop environemnts
     icon_dir="$out/share/icons/hicolor/64x64/apps"
@@ -208,6 +211,7 @@ in buildPythonApplication rec {
     homepage = "https://xpra.org/";
     downloadPage = "https://xpra.org/src/";
     description = "Persistent remote applications for X";
+    changelog = "https://github.com/Xpra-org/xpra/releases/tag/v${version}";
     platforms = platforms.linux;
     license = licenses.gpl2;
     maintainers = with maintainers; [ offline numinit mvnetbiz ];

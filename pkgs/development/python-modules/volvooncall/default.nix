@@ -17,20 +17,20 @@
 
 buildPythonPackage rec {
   pname = "volvooncall";
-  version = "0.10.1";
+  version = "0.10.3";
   format = "setuptools";
 
-  disabled = pythonOlder "3.8";
+  disabled = pythonOlder "3.10";
 
   src = fetchFromGitHub {
     owner = "molobrakos";
     repo = "volvooncall";
     rev = "refs/tags/v${version}";
-    hash = "sha256-udYvgKj7Rlc/hA86bbeBfnoVRjKkXT4TwpceWz226cU=";
+    hash = "sha256-FLrsU3u/0+T09cu2zU2fLjuAy9PWAikgbaW8xBALjwU=";
   };
 
   patches = [
-    # Remove async, https://github.com/molobrakos/volvooncall/pull/92
+    # Remove asynctest, https://github.com/molobrakos/volvooncall/pull/92
     (fetchpatch {
       name = "remove-asnyc.patch";
       url = "https://github.com/molobrakos/volvooncall/commit/ef0df403250288c00ed4c600e9dfa79dcba8941e.patch";

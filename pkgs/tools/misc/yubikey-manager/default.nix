@@ -3,14 +3,14 @@
 
 python3Packages.buildPythonPackage rec {
   pname = "yubikey-manager";
-  version = "5.0.0";
+  version = "5.1.1";
   format = "pyproject";
 
   src = fetchFromGitHub {
-    repo = "yubikey-manager";
-    rev = "refs/tags/${version}";
     owner = "Yubico";
-    sha256 = "sha256-ZQQhRiUsQwLaOY8NCzSc/PTmRewTL0ECBKj7Uj+6Gn8=";
+    repo = "yubikey-manager";
+    rev = version;
+    hash = "sha256-rF1oOhlZP1EKiqErJ4L/otkoEvW0iA2P4g5MWCKrCO4=";
   };
 
   postPatch = ''
@@ -23,7 +23,7 @@ python3Packages.buildPythonPackage rec {
   nativeBuildInputs = with python3Packages; [ poetry-core ];
 
   propagatedBuildInputs =
-    with python3Packages; ([
+    with python3Packages; [
       click
       cryptography
       pyscard
@@ -31,7 +31,7 @@ python3Packages.buildPythonPackage rec {
       six
       fido2
       keyring
-    ]) ++ [
+    ] ++ [
       libu2f-host
       libusb1
       yubikey-personalization

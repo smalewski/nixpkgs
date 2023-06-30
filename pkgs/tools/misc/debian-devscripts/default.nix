@@ -11,12 +11,12 @@ let
     exec ''${EDITOR-${nano}/bin/nano} "$@"
   '';
 in stdenv.mkDerivation rec {
-  version = "2.22.2";
+  version = "2.23.5";
   pname = "debian-devscripts";
 
   src = fetchurl {
     url = "mirror://debian/pool/main/d/devscripts/devscripts_${version}.tar.xz";
-    hash = "sha256-Fflalt2JxqLS0gq0wy88pXCqiNvHj7sfP7fLwdSmUCs=";
+    hash = "sha256-j0fUVTS/lPKFdgeMhksiJz2+E5koB07IK2uEj55EWG0=";
   };
 
   postPatch = ''
@@ -27,7 +27,7 @@ in stdenv.mkDerivation rec {
 
   nativeBuildInputs = [ makeWrapper pkg-config ];
   buildInputs = [ xz dpkg libxslt python setuptools curl gnupg diffutils bash-completion help2man ] ++
-    (with perlPackages; [ perl CryptSSLeay LWP TimeDate DBFile FileDesktopEntry ParseDebControl LWPProtocolHttps ]);
+    (with perlPackages; [ perl CryptSSLeay LWP TimeDate DBFile FileDesktopEntry ParseDebControl LWPProtocolHttps Moo FileHomeDir IPCRun FileDirList FileTouch ]);
 
   preConfigure = ''
     export PERL5LIB="$PERL5LIB''${PERL5LIB:+:}${dpkg}";

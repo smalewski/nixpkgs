@@ -1,6 +1,7 @@
 { stdenv, lib, fetchurl, ghostscript, gyre-fonts, texinfo, imagemagick, texi2html, guile
 , python3, gettext, flex, perl, bison, pkg-config, autoreconfHook, dblatex
 , fontconfig, freetype, pango, fontforge, help2man, zip, netpbm, groff
+, freefont_ttf, makeFontsConf
 , makeWrapper, t1utils, boehmgc, rsync
 , texlive, tex ? texlive.combine {
     inherit (texlive) scheme-small lh metafont epsf fontinst;
@@ -9,11 +10,11 @@
 
 stdenv.mkDerivation rec {
   pname = "lilypond";
-  version = "2.24.0";
+  version = "2.24.1";
 
   src = fetchurl {
     url = "http://lilypond.org/download/sources/v${lib.versions.majorMinor version}/lilypond-${version}.tar.gz";
-    sha256 = "sha256-PO2+O5KwJWnjpvLwZ0hYlns9onjXCqPpiu9b3Nf3i2k=";
+    sha256 = "sha256-1cWQh1ZKXNbwilK6gOfWUJuRxYXkQ4XcwPo5Jl0YFQk=";
   };
 
   postInstall = ''
@@ -62,4 +63,8 @@ stdenv.mkDerivation rec {
     maintainers = with maintainers; [ marcweber yurrriq ];
     platforms = platforms.all;
   };
+
+  FONTCONFIG_FILE = lib.optional stdenv.isDarwin (makeFontsConf {
+    fontDirectories = [ freefont_ttf ];
+  });
 }

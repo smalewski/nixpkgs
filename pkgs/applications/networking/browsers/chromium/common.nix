@@ -34,9 +34,13 @@
 , libva
 , libdrm, wayland, libxkbcommon # Ozone
 , curl
+, libffi
 , libepoxy
+, libevdev
 # postPatch:
 , glibc # gconv + locale
+# postFixup:
+, vulkan-loader
 
 # Package customization:
 , cupsSupport ? true, cups ? null
@@ -52,7 +56,7 @@
 buildFun:
 
 let
-  python3WithPackages = python3.withPackages(ps: with ps; [
+  python3WithPackages = python3.pythonForBuild.withPackages(ps: with ps; [
     ply jinja2 setuptools
   ]);
   clangFormatPython3 = fetchurl {
@@ -126,6 +130,7 @@ let
       python3WithPackages perl
       which
       llvmPackages.bintools
+      bison gperf
     ];
 
     buildInputs = [
@@ -139,7 +144,7 @@ let
       nasm
       nspr nss
       util-linux alsa-lib
-      bison gperf libkrb5
+      libkrb5
       glib gtk3 dbus-glib
       libXScrnSaver libXcursor libXtst libxshmfence libGLU libGL
       mesa # required for libgbm
@@ -149,6 +154,8 @@ let
       libdrm wayland mesa.drivers libxkbcommon
       curl
       libepoxy
+      libffi
+      libevdev
     ] ++ lib.optional systemdSupport systemd
       ++ lib.optionals cupsSupport [ libgcrypt cups ]
       ++ lib.optional pulseSupport libpulseaudio;
@@ -162,6 +169,13 @@ let
       # (we currently package 1.26 in Nixpkgs while Chromium bundles 1.21):
       # Source: https://bugs.chromium.org/p/angleproject/issues/detail?id=7582#c1
       ./patches/angle-wayland-include-protocol.patch
+      # We need to revert this patch to build M114+ with LLVM 16:
+      (githubPatch {
+        # Reland [clang] Disable autoupgrading debug info in ThinLTO builds
+        commit = "54969766fd2029c506befc46e9ce14d67c7ed02a";
+        sha256 = "sha256-Vryjg8kyn3cxWg3PmSwYRG6zrHOqYWBMSdEMGiaPg6M=";
+        revert = true;
+      })
     ];
 
     postPatch = ''
@@ -235,7 +249,7 @@ let
       # Allow building against system libraries in official builds
       sed -i 's/OFFICIAL_BUILD/GOOGLE_CHROME_BUILD/' tools/generate_shim_headers/generate_shim_headers.py
 
-    '' + lib.optionalString stdenv.isAarch64 ''
+    '' + lib.optionalString (stdenv.hostPlatform == stdenv.buildPlatform && stdenv.hostPlatform.isAarch64) ''
       substituteInPlace build/toolchain/linux/BUILD.gn \
         --replace 'toolprefix = "aarch64-linux-gnu-"' 'toolprefix = ""'
     '' + lib.optionalString ungoogled ''
@@ -291,14 +305,9 @@ let
       chrome_pgo_phase = 0;
       clang_base_path = "${llvmPackages.clang}";
       use_qt = false;
-    } // lib.optionalAttrs (!chromiumVersionAtLeast "110") {
-      # The default has changed to false. We'll build with libwayland from
-      # Nixpkgs for now but might want to eventually use the bundled libwayland
-      # as well to avoid incompatibilities (if this continues to be a problem
-      # from time to time):
-      use_system_libwayland = true;
-      # The default value is hardcoded instead of using pkg-config:
-      system_wayland_scanner_path = "${wayland.bin}/bin/wayland-scanner";
+      # To fix the build as we don't provide libffi_pic.a
+      # (ld.lld: error: unable to find library -l:libffi_pic.a):
+      use_system_libffi = true;
     } // lib.optionalAttrs proprietaryCodecs {
       # enable support for the H.264 codec
       proprietary_codecs = true;
@@ -315,7 +324,7 @@ let
 
       # This is to ensure expansion of $out.
       libExecPath="${libExecPath}"
-      ${python3}/bin/python3 build/linux/unbundle/replace_gn_files.py --system-libraries ${toString gnSystemLibraries}
+      ${python3.pythonForBuild}/bin/python3 build/linux/unbundle/replace_gn_files.py --system-libraries ${toString gnSystemLibraries}
       ${gnChromium}/bin/gn gen --args=${lib.escapeShellArg gnFlags} out/Release | tee gn-gen-outputs.txt
 
       # Fail if `gn gen` contains a WARNING.
@@ -327,11 +336,11 @@ let
     # Don't spam warnings about unknown warning options. This is useful because
     # our Clang is always older than Chromium's and the build logs have a size
     # of approx. 25 MB without this option (and this saves e.g. 66 %).
-    NIX_CFLAGS_COMPILE = "-Wno-unknown-warning-option";
+    env.NIX_CFLAGS_COMPILE = "-Wno-unknown-warning-option";
 
     buildPhase = let
       buildCommand = target: ''
-        ninja -C "${buildPath}" -j$NIX_BUILD_CORES "${target}"
+        TERM=dumb ninja -C "${buildPath}" -j$NIX_BUILD_CORES "${target}"
         (
           source chrome/installer/linux/common/installer.include
           PACKAGE=$packageName
@@ -341,13 +350,17 @@ let
       '';
       targets = extraAttrs.buildTargets or [];
       commands = map buildCommand targets;
-    in lib.concatStringsSep "\n" commands;
+    in ''
+      runHook preBuild
+      ${lib.concatStringsSep "\n" commands}
+      runHook postBuild
+    '';
 
     postFixup = ''
-      # Make sure that libGLESv2 is found by dlopen (if using EGL).
+      # Make sure that libGLESv2 and libvulkan are found by dlopen.
       chromiumBinary="$libExecPath/$packageName"
       origRpath="$(patchelf --print-rpath "$chromiumBinary")"
-      patchelf --set-rpath "${libGL}/lib:$origRpath" "$chromiumBinary"
+      patchelf --set-rpath "${lib.makeLibraryPath [ libGL vulkan-loader ]}:$origRpath" "$chromiumBinary"
     '';
 
     passthru = {

@@ -17,13 +17,13 @@
 
 buildPythonPackage rec {
   pname = "flax";
-  version = "0.6.3";
+  version = "0.6.5";
 
   src = fetchFromGitHub {
     owner = "google";
     repo = pname;
     rev = "refs/tags/v${version}";
-    sha256 = "sha256-4BYfrwEddA2LCMyDO6PBBYdMVTqqDxhzMCZ5JIIml3g=";
+    hash = "sha256-Vv68BK83gTIKj0r9x+twdhqmRYziD0vxQCdHkYSeTak=";
   };
 
   buildInputs = [ jaxlib ];
@@ -85,10 +85,10 @@ buildPythonPackage rec {
   meta = with lib; {
     description = "Neural network library for JAX";
     homepage = "https://github.com/google/flax";
+    changelog = "https://github.com/google/flax/releases/tag/v${version}";
     license = licenses.asl20;
     maintainers = with maintainers; [ ndl ];
-    # Py3.10 requires orbax, tensorstore which needs packaging
-    # Py3.11 requires tensorboard, which is unsupported at py3.11 atm
-    broken = true; # At 2023-02-05
+    # Requires orbax which is not available
+    broken = true;
   };
 }

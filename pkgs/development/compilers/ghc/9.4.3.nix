@@ -18,7 +18,7 @@
               || stdenv.targetPlatform.isPower
               || stdenv.targetPlatform.isSparc
               || (stdenv.targetPlatform.isAarch64 && stdenv.targetPlatform.isDarwin))
-, # LLVM is conceptually a run-time-only depedendency, but for
+, # LLVM is conceptually a run-time-only dependency, but for
   # non-x86, we need LLVM to bootstrap later stages, so it becomes a
   # build-time dependency too.
   buildTargetLlvmPackages, llvmPackages
@@ -189,6 +189,15 @@ stdenv.mkDerivation (rec {
 
   outputs = [ "out" "doc" ];
 
+  patches = [
+    # Fix docs build with sphinx >= 6.0
+    # https://gitlab.haskell.org/ghc/ghc/-/issues/22766
+    (fetchpatch {
+      name = "ghc-docs-sphinx-6.0.patch";
+      url = "https://gitlab.haskell.org/ghc/ghc/-/commit/10e94a556b4f90769b7fd718b9790d58ae566600.patch";
+      sha256 = "0kmhfamr16w8gch0lgln2912r8aryjky1hfcda3jkcwa5cdzgjdv";
+    })
+  ];
 
   postPatch = "patchShebangs .";
 

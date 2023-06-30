@@ -4,7 +4,6 @@
 , rust
 , stdenv
 , callPackage
-, cacert
 , cargoBuildHook
 , cargoCheckHook
 , cargoInstallHook
@@ -12,7 +11,7 @@
 , cargoSetupHook
 , cargo
 , cargo-auditable
-, cargo-auditable-cargo-wrapper
+, buildPackages
 , rustc
 , libiconv
 , windows
@@ -25,7 +24,9 @@
 
 , src ? null
 , srcs ? null
+, preUnpack ? null
 , unpackPhase ? null
+, postUnpack ? null
 , cargoPatches ? []
 , patches ? []
 , sourceRoot ? null
@@ -44,7 +45,7 @@
 , buildFeatures ? [ ]
 , checkFeatures ? buildFeatures
 , useNextest ? false
-, auditable ? false # TODO: change to true
+, auditable ? !cargo-auditable.meta.broken
 
 , depsExtraArgs ? {}
 
@@ -69,7 +70,7 @@ let
     if cargoVendorDir != null then null
     else if cargoLock != null then importCargoLock cargoLock
     else fetchCargoTarball ({
-      inherit src srcs sourceRoot unpackPhase cargoUpdateHook;
+      inherit src srcs sourceRoot preUnpack unpackPhase postUnpack cargoUpdateHook;
       name = cargoDepsName;
       patches = cargoPatches;
     } // lib.optionalAttrs (args ? cargoHash) {
@@ -120,11 +121,10 @@ stdenv.mkDerivation ((removeAttrs args [ "depsExtraArgs" "cargoUpdateHook" "carg
   patchRegistryDeps = ./patch-registry-deps;
 
   nativeBuildInputs = nativeBuildInputs ++ lib.optionals auditable [
-    (cargo-auditable-cargo-wrapper.override {
+    (buildPackages.cargo-auditable-cargo-wrapper.override {
       inherit cargo cargo-auditable;
     })
   ] ++ [
-    cacert
     cargoBuildHook
     (if useNextest then cargoNextestHook else cargoCheckHook)
     cargoInstallHook
@@ -156,10 +156,16 @@ stdenv.mkDerivation ((removeAttrs args [ "depsExtraArgs" "cargoUpdateHook" "carg
 
   strictDeps = true;
 
-  passthru = { inherit cargoDeps; } // (args.passthru or {});
-
   meta = {
     # default to Rust's platforms
-    platforms = rustc.meta.platforms;
+    platforms = rustc.meta.platforms ++ [
+      # Platforms without host tools from
+      # https://doc.rust-lang.org/nightly/rustc/platform-support.html
+      "armv7a-darwin"
+      "armv5tel-linux" "armv7a-linux" "m68k-linux" "riscv32-linux"
+      "armv6l-netbsd"
+      "x86_64-redox"
+      "wasm32-wasi"
+    ];
   } // meta;
 })

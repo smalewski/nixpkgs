@@ -9,16 +9,21 @@
 
 rustPlatform.buildRustPackage rec {
   pname = "felix";
-  version = "2.2.4";
+  version = "2.4.1";
 
   src = fetchFromGitHub {
     owner = "kyoheiu";
     repo = pname;
     rev = "v${version}";
-    sha256 = "sha256-KuEuWZSxh04NefkkJBYClnKs+UP7VwlyPElACjNZ5k8=";
+    sha256 = "sha256-F2Zw72RdKarrwM47a+Wqe1R1TOK97Ek5AnmAe/0MheY=";
   };
 
-  cargoSha256 = "sha256-jYDe/3PDGCweNgHb+8i9az7J7BATlRjd3yha0nOc/gc=";
+  cargoLock = {
+    lockFile = ./Cargo.lock;
+    outputHashes = {
+      "syntect-5.0.0" = "sha256-RMdO5+oHLpNlAynvNIbCI0ia4KzaOO9IYwpiX6ZTwno=";
+    };
+  };
 
   nativeBuildInputs = [ pkg-config ];
 
@@ -34,8 +39,7 @@ rustPlatform.buildRustPackage rec {
   checkFlags = [
     # extra test files not shipped with the repository
     "--skip=functions::tests::test_list_up_contents"
-    "--skip=magic_image::tests::test_inspect_image"
-    "--skip=magic_packed::tests::test_inspect_signature"
+    "--skip=state::tests::test_has_write_permission"
   ];
 
   meta = with lib; {

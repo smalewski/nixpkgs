@@ -13,47 +13,42 @@
 let
   phpMajor = lib.versions.majorMinor php.version;
 
-  version = "1.86.3";
+  version = "1.87.2";
 
   hashes = {
     "x86_64-linux" = {
       system = "amd64";
       sha256 = {
-        "8.0" = "Vl16ssG+47CvGNTQBR6aNkEzoSor7B8F71TSN3x2bm0=";
-        "8.1" = "27yLfDJYTQ3Izr8M6XFEsEWb7WDmuKjKCdSCPfL9HUw=";
-        "8.2" = "tnxlB+Tq8qeRoHjBNl/CMI0UZb02ayssiRJSMZaTwWI=";
+        "8.1" = "FEb0NBJpwoYaNdEHEn4TkSQR7VShGpHptaDIRKwrmkQ=";
+        "8.2" = "itB0Zm1Mog18F8vIHn9AZMYMzafLQR0v5zcOgqy1ouI=";
       };
     };
     "i686-linux" = {
       system = "i386";
       sha256 = {
-        "8.0" = "NF5R470FC/nrAvk57Y3wStT4EQrWCvntniD9rD1Fv/Y=";
-        "8.1" = "aAl+oX0QfL6wStUrrhB44JHqAvA4ZLbc3dQyRHJbcNU=";
-        "8.2" = "SWAC9XlJs1vNWnDWeuXHPOMQoA5kCqiSrWxNpRcXHns=";
+        "8.1" = "0bX2frll0ne6H6o7HNH4TRV2D+NDe11mVvqwhvSDg9E=";
+        "8.2" = "U6zmbEkRr3+9yVwUgQ1+SBNK0zWD92S2KBOHJ1gMmjM=";
       };
     };
     "aarch64-linux" = {
       system = "arm64";
       sha256 = {
-        "8.0" = "jrTCMkJWzPzzJU7eET+VCwKaiRPqcQKPPIJZrLAuJ6s=";
-        "8.1" = "WjomQa3+27mW8tR5u++LyVDtyNa7Bj8uS3FHsmdsafo=";
-        "8.2" = "3SGtZkKosxKsJ/qTlP7BFpnroOTRaWFsvDHq1fK1UBE=";
+        "8.1" = "agLQVI3u7ENcWLDRx7YSEBZobRnwEaKAmFpIU5AXhqo=";
+        "8.2" = "Y2bUYaymoZ/Ct5a7K+5U+zNh9ZKUaq0Oal/v04nzuaU=";
       };
     };
     "aarch64-darwin" = {
       system = "arm64";
       sha256 = {
-        "8.0" = "MDPgDfIOfjr/VMGrxj7159xJl6P3jPYgoNOkISZBmX4=";
-        "8.1" = "zV5gjpA9tNGo/p/Is8n8WfGyIdb/IQDbfH1KuD8S4s8=";
-        "8.2" = "+zwX3r9X/avQvcmNtt5RT3smY+4yfXFo8XPCiV9xWT4=";
+        "8.1" = "ovTtwXPut9jCvxVyd5mQzrfJPCy+rQvUi4c74NrBzY4=";
+        "8.2" = "8hybE62l8vSwbqpcrnj/lI2Wjy8R3wuO04zwofLi9EY=";
       };
     };
     "x86_64-darwin" = {
       system = "amd64";
       sha256 = {
-        "8.0" = "wEsbQrowYgOlbWUkv+yPtPliC9b/iIUXBsvrCXCL6aM=";
-        "8.1" = "zl7OX3LlBLxn0oLYlNbVavxL4rho4LS3EZmAB2x6zZs=";
-        "8.2" = "fYGIDxNeBx+HyPx9lhfNZgKUeMJwZ4KvUcJ4jtwH5nQ=";
+        "8.1" = "WsHH/XJboHeRhxpYY0WtXEJwOsGNFtfexBShC/J7GaQ=";
+        "8.2" = "w3Vu7CTFebn59i1FYVCYHiOadTIPlPCkQ1QHEfvHWig=";
       };
     };
   };

@@ -7,6 +7,7 @@
 , hatchling
 , importlib-metadata
 , importlib-resources
+, pkgutil-resolve-name
 , pyrsistent
 , pythonOlder
 , twisted
@@ -33,7 +34,7 @@ buildPythonPackage rec {
 
   src = fetchPypi {
     inherit pname version;
-    sha256 = "sha256-D4ZEN6uLYHa6ZwdFPvj5imoNUSqA6T+KvbZ29zfstg0=";
+    hash = "sha256-D4ZEN6uLYHa6ZwdFPvj5imoNUSqA6T+KvbZ29zfstg0=";
   };
 
   postPatch = ''
@@ -54,6 +55,7 @@ buildPythonPackage rec {
     typing-extensions
   ] ++ lib.optionals (pythonOlder "3.9") [
     importlib-resources
+    pkgutil-resolve-name
   ];
 
   passthru.optional-dependencies = {

@@ -45,7 +45,10 @@ let
   # NB: This file describes the Nixpkgs manual, which happens to use module
   #     docs infra originally developed for NixOS.
   optionsDoc = pkgs.nixosOptionsDoc {
-    inherit (pkgs.lib.evalModules { modules = [ ../../pkgs/top-level/config.nix ]; }) options;
+    inherit (pkgs.lib.evalModules {
+      modules = [ ../../pkgs/top-level/config.nix ];
+      class = "nixpkgsConfig";
+    }) options;
     documentType = "none";
     transformOptions = opt:
       opt // {
@@ -75,7 +78,7 @@ in pkgs.runCommand "doc-support" {}
     ln -s ${epub-xsl} ./epub.xsl
     ln -s ${xhtml-xsl} ./xhtml.xsl
 
-    ln -s ${../../nixos/doc/xmlformat.conf} ./xmlformat.conf
+    ln -s ${./xmlformat.conf} ./xmlformat.conf
     ln -s ${pkgs.documentation-highlighter} ./highlightjs
 
     echo -n "${version}" > ./version

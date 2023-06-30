@@ -5,14 +5,14 @@
 
 python3.pkgs.buildPythonApplication rec {
   pname = "hyfetch";
-  version = "1.4.6";
+  version = "1.4.9";
   format = "setuptools";
 
   src = fetchFromGitHub {
     owner = "hykilpikonna";
     repo = "hyfetch";
     rev = "refs/tags/${version}";
-    hash = "sha256-bbAJV4G5FAY0mSfrbIEs0eNFARZD74dUvHEBQuPc0rI=";
+    hash = "sha256-n+Aa6HrGB7aKrHLQijKNcUVGMYxuqYVrAAnHFPDYH40=";
   };
 
   propagatedBuildInputs = with python3.pkgs; [

@@ -7,16 +7,16 @@
 
 buildGoModule rec {
   pname = "gopass-hibp";
-  version = "1.15.3";
+  version = "1.15.5";
 
   src = fetchFromGitHub {
     owner = "gopasspw";
-    repo = pname;
+    repo = "gopass-hibp";
     rev = "v${version}";
-    hash = "sha256-KqW1q3CnniNeQFypeZ6x/ov58SOMfAX5P2MMDKjMYBg=";
+    hash = "sha256-BHMhQqaYM0WfCzvDo7X1GEVNv44zEw2KeA9jhF7RgC4=";
   };
 
-  vendorHash = "sha256-w1Kxocrwcgn0g6ZBJ7obHraHK397bJltUFkm+/p4H5Y=";
+  vendorHash = "sha256-Y6BMzSRzbORIbebfP+ptIswyOclM1bs1zPmLpqko//4=";
 
   subPackages = [ "." ];
 

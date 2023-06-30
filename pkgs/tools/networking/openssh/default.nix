@@ -6,11 +6,11 @@ in
 
   openssh = common rec {
     pname = "openssh";
-    version = "9.1p1";
+    version = "9.3p1";
 
     src = fetchurl {
       url = "mirror://openbsd/OpenSSH/portable/openssh-${version}.tar.gz";
-      hash = "sha256-GfhQCcfj4jeH8CNvuxV4OSq01L+fjsX+a8HNfov90og=";
+      hash = "sha256-6bq6dwGnalHz2Fpiw4OjydzZf6kAuFm8fbEUwYaK+Kg=";
     };
 
     extraPatches = [ ./ssh-keysign-8.5.patch ];
@@ -19,30 +19,42 @@ in
 
   openssh_hpn = common rec {
     pname = "openssh-with-hpn";
-    version = "9.1p1";
+    version = "9.3p1";
     extraDesc = " with high performance networking patches";
 
     src = fetchurl {
       url = "mirror://openbsd/OpenSSH/portable/openssh-${version}.tar.gz";
-      hash = "sha256-GfhQCcfj4jeH8CNvuxV4OSq01L+fjsX+a8HNfov90og=";
+      hash = "sha256-6bq6dwGnalHz2Fpiw4OjydzZf6kAuFm8fbEUwYaK+Kg=";
     };
 
-    extraPatches = [
+    extraPatches = let url = "https://raw.githubusercontent.com/freebsd/freebsd-ports/700625bcd86b74cf3fb9536aeea250d7f8cd1fd5/security/openssh-portable/files/extra-patch-hpn"; in
+    [
       ./ssh-keysign-8.5.patch
 
       # HPN Patch from FreeBSD ports
       (fetchpatch {
-        name = "ssh-hpn.patch";
-        url = "https://raw.githubusercontent.com/freebsd/freebsd-ports/ae66cffc19f357cbd51d5841c9b110a9ffd63e32/security/openssh-portable/files/extra-patch-hpn";
+        name = "ssh-hpn-wo-channels.patch";
+        inherit url;
         stripLen = 1;
-        sha256 = "sha256-p3CmMqTgrqFZUo4ZuqaPLczAhjmPufkCvptVW5dI+MI=";
+        excludes = [ "channels.c" ];
+        hash = "sha256-hYB3i0ifNOgGLYwElMJFcT+ktczLKciq3qw1tTHZHcc=";
+      })
+
+      (fetchpatch {
+        name = "ssh-hpn-channels.patch";
+        inherit url;
+        extraPrefix = "";
+        includes = [ "channels.c" ];
+        hash = "sha256-pDLUbjv5XIyByEbiRAXC3WMUPKmn15af1stVmcvr7fE=";
       })
     ];
 
     extraNativeBuildInputs = [ autoreconfHook ];
 
     extraConfigureFlags = [ "--with-hpn" ];
-    extraMeta.maintainers = with lib.maintainers; [ abbe ];
+    extraMeta = {
+      maintainers = with lib.maintainers; [ abbe ];
+    };
   };
 
   openssh_gssapi = common rec {
@@ -66,5 +78,6 @@ in
     ];
 
     extraNativeBuildInputs = [ autoreconfHook ];
+    extraMeta.knownVulnerabilities = [ "CVE-2023-28531" ];
   };
 }

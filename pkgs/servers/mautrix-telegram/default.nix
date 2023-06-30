@@ -1,19 +1,19 @@
 { lib
 , python3
+, fetchPypi
 , fetchFromGitHub
 , withE2BE ? true
-, withHQthumbnails ? false
 }:
 
 let
   python = python3.override {
     packageOverrides = self: super: {
       tulir-telethon = self.telethon.overridePythonAttrs (oldAttrs: rec {
-        version = "1.27.0a7";
+        version = "1.28.0a9";
         pname = "tulir-telethon";
-        src = super.fetchPypi {
+        src = fetchPypi {
           inherit pname version;
-          sha256 = "sha256-w4WILvLvJBKf3Nlj0omTCDDD4z+b0XFlCplQ/IHwIPs=";
+          hash = "sha256-7lRoJYhy9c8RxJTW1/7SrNtA36mwIrPcyRMPVNhWJTk=";
         };
         doCheck = false;
       });
@@ -22,14 +22,14 @@ let
 in
 python.pkgs.buildPythonPackage rec {
   pname = "mautrix-telegram";
-  version = "unstable-2023-01-28";
+  version = "0.14.0";
   disabled = python.pythonOlder "3.8";
 
   src = fetchFromGitHub {
     owner = "mautrix";
     repo = "telegram";
-    rev = "f12abbe03846fd5897d58572ab24b70a58b337d2";
-    sha256 = "sha256-5ZZ85FOmTO26q2zhAIsF7mTlN4BLNLW2dQF+0culkUM=";
+    rev = "refs/tags/v${version}";
+    hash = "sha256-OPWa3jqaLnV7M1Q77N10A3HT65dNon6RWE5mbQRvjEs=";
   };
 
   format = "setuptools";
@@ -39,13 +39,14 @@ python.pkgs.buildPythonPackage rec {
   propagatedBuildInputs = with python.pkgs; ([
     ruamel-yaml
     python-magic
-    CommonMark
+    commonmark
     aiohttp
     yarl
     mautrix
     tulir-telethon
     asyncpg
-    Mako
+    mako
+    setuptools
     # speedups
     cryptg
     aiodns
@@ -59,9 +60,6 @@ python.pkgs.buildPythonPackage rec {
     prometheus-client
     # sqlite
     aiosqlite
-  ] ++ lib.optionals withHQthumbnails [
-    # hq_thumbnails
-    moviepy
   ] ++ lib.optionals withE2BE [
     # e2be
     python-olm

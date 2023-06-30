@@ -1,5 +1,6 @@
 { lib
 , stdenv
+, fetchpatch
 , fetchurl
 , tzdata
 , substituteAll
@@ -58,7 +59,7 @@ stdenv.mkDerivation rec {
     ++ lib.optionals stdenv.isLinux [ stdenv.cc.libc.out ]
     ++ lib.optionals (stdenv.hostPlatform.libc == "glibc") [ stdenv.cc.libc.static ];
 
-  depsTargetTargetPropagated = lib.optionals stdenv.isDarwin [ Foundation Security xcbuild ];
+  depsTargetTargetPropagated = lib.optionals stdenv.targetPlatform.isDarwin [ Foundation Security xcbuild ];
 
   depsBuildTarget = lib.optional isCross targetCC;
 
@@ -87,6 +88,12 @@ stdenv.mkDerivation rec {
     })
     ./remove-tools-1.11.patch
     ./go_no_vendor_checks-1.16.patch
+
+    # runtime: support riscv64 SV57 mode
+    (fetchpatch {
+      url = "https://github.com/golang/go/commit/1e3c19f3fee12e5e2b7802a54908a4d4d03960da.patch";
+      sha256 = "sha256-mk/9gXwQEcAkiRemF6GiNU0c0fhDR29/YcKgQR7ONTA=";
+    })
   ];
 
   GOOS = stdenv.targetPlatform.parsed.kernel.name;
@@ -142,18 +149,18 @@ stdenv.mkDerivation rec {
     # Contains the wrong perl shebang when cross compiling,
     # since it is not used for anything we can deleted as well.
     rm src/regexp/syntax/make_perl_groups.pl
-  '' + (if (stdenv.buildPlatform != stdenv.hostPlatform) then ''
+  '' + (if (stdenv.buildPlatform.system != stdenv.hostPlatform.system) then ''
     mv bin/*_*/* bin
     rmdir bin/*_*
     ${lib.optionalString (!(GOHOSTARCH == GOARCH && GOOS == GOHOSTOS)) ''
       rm -rf pkg/${GOHOSTOS}_${GOHOSTARCH} pkg/tool/${GOHOSTOS}_${GOHOSTARCH}
     ''}
-  '' else if (stdenv.hostPlatform != stdenv.targetPlatform) then ''
+  '' else lib.optionalString (stdenv.hostPlatform.system != stdenv.targetPlatform.system) ''
     rm -rf bin/*_*
     ${lib.optionalString (!(GOHOSTARCH == GOARCH && GOOS == GOHOSTOS)) ''
       rm -rf pkg/${GOOS}_${GOARCH} pkg/tool/${GOOS}_${GOARCH}
     ''}
-  '' else "");
+  '');
 
   installPhase = ''
     runHook preInstall
@@ -173,6 +180,7 @@ stdenv.mkDerivation rec {
   };
 
   meta = with lib; {
+    changelog = "https://go.dev/doc/devel/release#go${lib.versions.majorMinor version}";
     description = "The Go Programming language";
     homepage = "https://go.dev/";
     license = licenses.bsd3;

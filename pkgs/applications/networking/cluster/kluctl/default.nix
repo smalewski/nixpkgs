@@ -2,16 +2,16 @@
 
 buildGoModule rec {
   pname = "kluctl";
-  version = "2.18.4";
+  version = "2.20.6";
 
   src = fetchFromGitHub {
     owner = "kluctl";
     repo = "kluctl";
     rev = "v${version}";
-    hash = "sha256-nHfJ7Dt9nAY4fY+U7W46cPRwWSgtGvwdbUjQAynOQdw=";
+    hash = "sha256-B8+HKqIuJaH+6ViBxWfiAAmXieQKcwAW565SwUpIJKI=";
   };
 
-  vendorHash = "sha256-ADYXLcCYmlQim9KvqkXGdEXJ9cACBsRCb3emcmrL0kg=";
+  vendorHash = "sha256-x5Zy8H7DzxU+uBCUL6edv8x2LwiIjXl5UrRUMDtUEk8=";
 
   ldflags = [ "-s" "-w" "-X main.version=v${version}" ];
 
@@ -22,6 +22,10 @@ buildGoModule rec {
     package = kluctl;
     version = "v${version}";
   };
+
+  postInstall = ''
+    mv $out/bin/{cmd,kluctl}
+  '';
 
   meta = with lib; {
     description = "The missing glue to put together large Kubernetes deployments";

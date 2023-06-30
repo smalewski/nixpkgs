@@ -8,17 +8,26 @@
 , buildContrib ? stdenv.hostPlatform == stdenv.buildPlatform
 , doCheck ? stdenv.hostPlatform == stdenv.buildPlatform
 , nix-update-script
+
+# for passthru.tests
+, libarchive
+, rocksdb
+, arrow-cpp
+, libzip
+, curl
+, python3Packages
+, haskellPackages
 }:
 
 stdenv.mkDerivation rec {
   pname = "zstd";
-  version = "1.5.2";
+  version = "1.5.5";
 
   src = fetchFromGitHub {
     owner = "facebook";
     repo = "zstd";
     rev = "v${version}";
-    sha256 = "sha256-yJvhcysxcbUGuDOqe/TQ3Y5xyM2AUw6r1THSHOqmUy0=";
+    sha256 = "sha256-tHHHIsQU7vJySrVhJuMKUSq11MzkmC+Pcsj00uFJdnQ=";
   };
 
   nativeBuildInputs = [ cmake ]
@@ -91,6 +100,14 @@ stdenv.mkDerivation rec {
 
   passthru = {
     updateScript = nix-update-script { };
+    tests = {
+      inherit libarchive rocksdb arrow-cpp;
+      libzip = libzip.override { withZstd = true; };
+      curl = curl.override { zstdSupport = true; };
+      python-zstd = python3Packages.zstd;
+      haskell-zstd = haskellPackages.zstd;
+      haskell-hs-zstd = haskellPackages.hs-zstd;
+    };
   };
 
   meta = with lib; {

@@ -31,7 +31,7 @@ buildPythonPackage rec {
 
   src = fetchPypi {
     inherit pname version;
-    sha256 = "sha256-wYl+UxfiJfx4tFVJpqtLZo5MmW/QOgTpOP5eevK//9A=";
+    hash = "sha256-wYl+UxfiJfx4tFVJpqtLZo5MmW/QOgTpOP5eevK//9A=";
   };
 
   LC_ALL = "en_US.utf8";
@@ -39,10 +39,22 @@ buildPythonPackage rec {
   nativeCheckInputs = [ pytestCheckHook glibcLocales ];
 
   propagatedBuildInputs = [
-    jinja2 tornado ipython_genutils traitlets jupyter-core send2trash
-    jupyter-client nbformat nbclassic
-    nbconvert ipykernel terminado requests pexpect
-    prometheus-client argon2-cffi
+    jinja2
+    tornado
+    ipython_genutils
+    traitlets
+    jupyter-core
+    send2trash
+    jupyter-client
+    nbformat
+    nbclassic
+    nbconvert
+    ipykernel
+    terminado
+    requests
+    pexpect
+    prometheus-client
+    argon2-cffi
   ];
 
   postPatch = ''
@@ -62,6 +74,7 @@ buildPythonPackage rec {
     "sock_server"
     "test_list_formats" # tries to find python MIME type
     "KernelCullingTest" # has a race condition failing on slower hardware
+    "test_connections" # tornado.simple_httpclient.HTTPTimeoutError: Timeout during request"
   ] ++ lib.optionals stdenv.isDarwin [
     "test_delete"
     "test_checkpoints_follow_file"
@@ -78,8 +91,9 @@ buildPythonPackage rec {
 
   meta = {
     description = "The Jupyter HTML notebook is a web-based notebook environment for interactive computing";
-    homepage = "https://jupyter.org/";
+    homepage = "https://github.com/jupyter/notebook";
     license = lib.licenses.bsd3;
     maintainers = with lib.maintainers; [ fridh ];
+    mainProgram = "jupyter-notebook";
   };
 }

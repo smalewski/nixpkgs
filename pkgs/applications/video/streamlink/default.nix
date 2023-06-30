@@ -1,17 +1,17 @@
 { lib
 , python3Packages
+, fetchPypi
 , ffmpeg
-, fetchpatch
 }:
 
 python3Packages.buildPythonApplication rec {
   pname = "streamlink";
-  version = "5.2.1";
+  version = "5.5.1";
   format = "pyproject";
 
-  src = python3Packages.fetchPypi {
+  src = fetchPypi {
     inherit pname version;
-    hash = "sha256-/YcFH5t9x9EsmK7oPvSECmhL2ypHYgPvsMdL1IupEfw=";
+    hash = "sha256-srT+jWQ22+e87HjeLUu3gBVjiFYUNbYaGWMVbp/F+9A=";
   };
 
   nativeCheckInputs = with python3Packages; [

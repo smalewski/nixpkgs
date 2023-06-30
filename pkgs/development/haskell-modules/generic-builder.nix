@@ -7,7 +7,7 @@ let
   isCross = stdenv.buildPlatform != stdenv.hostPlatform;
   inherit (buildPackages)
     fetchurl removeReferencesTo
-    pkg-config coreutils gnugrep gnused glibcLocales;
+    pkg-config coreutils gnugrep glibcLocales;
 in
 
 { pname
@@ -15,7 +15,7 @@ in
 # ghc.isGhcjs implies that we are using ghcjs, a project separate from GHC.
 # (mere) stdenv.hostPlatform.isGhcjs means that we are using GHC's JavaScript
 # backend. The latter is a normal cross compilation backend and needs little
-# special accomodation.
+# special accommodation.
 , dontStrip ? (ghc.isGhcjs or false || stdenv.hostPlatform.isGhcjs)
 , version, revision ? null
 , sha256 ? null
@@ -31,9 +31,10 @@ in
 , doBenchmark ? false
 , doHoogle ? true
 , doHaddockQuickjump ? doHoogle && lib.versionAtLeast ghc.version "8.6"
+, doInstallIntermediates ? false
 , editedCabalFile ? null
 # aarch64 outputs otherwise exceed 2GB limit
-, enableLibraryProfiling ? !(ghc.isGhcjs or stdenv.targetPlatform.isAarch64 or false)
+, enableLibraryProfiling ? !(ghc.isGhcjs or stdenv.hostPlatform.isAarch64 or false)
 , enableExecutableProfiling ? false
 , profilingDetail ? "exported-functions"
 # TODO enable shared libs for cross-compiling
@@ -84,6 +85,7 @@ in
 , enableSeparateBinOutput ? false
 , enableSeparateDataOutput ? false
 , enableSeparateDocOutput ? doHaddock
+, enableSeparateIntermediatesOutput ? false
 , # Don't fail at configure time if there are multiple versions of the
   # same package in the (recursive) dependencies of the package being
   # built. Will delay failures, if any, to compile time.
@@ -93,6 +95,10 @@ in
   # This can make it slightly faster to load this library into GHCi, but takes
   # extra disk space and compile time.
   enableLibraryForGhci ? false
+  # Set this to a previous build of this same package to reuse the intermediate
+  # build products from that prior build as a starting point for accelerating
+  # this build
+, previousIntermediates ? null
 } @ args:
 
 assert editedCabalFile != null -> revision != null;
@@ -199,7 +205,8 @@ let
   defaultConfigureFlags = [
     "--verbose"
     "--prefix=$out"
-    "--libdir=\\$prefix/lib/\\$compiler"
+    # Note: This must be kept in sync manually with mkGhcLibdir
+    ("--libdir=\\$prefix/lib/\\$compiler" + lib.optionalString (ghc ? hadrian) "/lib")
     "--libsubdir=\\$abi/\\$libname"
     (optionalString enableSeparateDataOutput "--datadir=$data/share/${ghcNameWithPrefix}")
     (optionalString enableSeparateDocOutput "--docdir=${docdir "$doc"}")
@@ -207,7 +214,7 @@ let
     "--with-gcc=$CC" # Clang won't work without that extra information.
   ] ++ [
     "--package-db=$packageConfDir"
-    (optionalString (enableSharedExecutables && stdenv.isLinux) "--ghc-option=-optl=-Wl,-rpath=$out/lib/${ghcNameWithPrefix}/${pname}-${version}")
+    (optionalString (enableSharedExecutables && stdenv.isLinux) "--ghc-option=-optl=-Wl,-rpath=$out/${ghcLibdir}/${pname}-${version}")
     (optionalString (enableSharedExecutables && stdenv.isDarwin) "--ghc-option=-optl=-Wl,-headerpad_max_install_names")
     (optionalString enableParallelBuilding "--ghc-options=${parallelBuildingFlags}")
     (optionalString useCpphs "--with-cpphs=${cpphs}/bin/cpphs --ghc-options=-cpp --ghc-options=-pgmP${cpphs}/bin/cpphs --ghc-options=-optP--cpp")
@@ -239,9 +246,11 @@ let
     "--ghc-options=-haddock"
   ];
 
+  postPhases = optional doInstallIntermediates "installIntermediatesPhase";
+
   setupCompileFlags = [
     (optionalString (!coreSetup) "-${nativePackageDbFlag}=$setupPackageConfDir")
-    (optionalString enableParallelBuilding (parallelBuildingFlags))
+    (optionalString enableParallelBuilding parallelBuildingFlags)
     "-threaded"       # https://github.com/haskell/cabal/issues/2398
     "-rtsopts"        # allow us to pass RTS flags to the generated Setup executable
   ];
@@ -284,10 +293,13 @@ let
   ghcCommand = "${ghc.targetPrefix}${ghcCommand'}";
 
   ghcNameWithPrefix = "${ghc.targetPrefix}${ghc.haskellCompilerName}";
+  mkGhcLibdir = ghc: "lib/${ghc.targetPrefix}${ghc.haskellCompilerName}"
+    + lib.optionalString (ghc ? hadrian) "/lib";
+  ghcLibdir = mkGhcLibdir ghc;
 
   nativeGhcCommand = "${nativeGhc.targetPrefix}ghc";
 
-  buildPkgDb = ghcName: packageConfDir: ''
+  buildPkgDb = thisGhc: packageConfDir: ''
     # If this dependency has a package database, then copy the contents of it,
     # unless it is one of our GHCs. These can appear in our dependencies when
     # we are doing native builds, and they have package databases in them, but
@@ -297,11 +309,13 @@ let
     # we compile with it, and doing so can result in having multiple copies of
     # e.g. Cabal in the database with the same name and version, which is
     # ambiguous.
-    if [ -d "$p/lib/${ghcName}/package.conf.d" ] && [ "$p" != "${ghc}" ] && [ "$p" != "${nativeGhc}" ]; then
-      cp -f "$p/lib/${ghcName}/package.conf.d/"*.conf ${packageConfDir}/
+    if [ -d "$p/${mkGhcLibdir thisGhc}/package.conf.d" ] && [ "$p" != "${ghc}" ] && [ "$p" != "${nativeGhc}" ]; then
+      cp -f "$p/${mkGhcLibdir thisGhc}/package.conf.d/"*.conf ${packageConfDir}/
       continue
     fi
   '';
+
+  intermediatesDir = "share/haskell/${ghc.version}/${pname}-${version}/dist";
 in lib.fix (drv:
 
 assert allPkgconfigDepends != [] -> pkg-config != null;
@@ -312,7 +326,9 @@ stdenv.mkDerivation ({
   outputs = [ "out" ]
          ++ (optional enableSeparateDataOutput "data")
          ++ (optional enableSeparateDocOutput "doc")
-         ++ (optional enableSeparateBinOutput "bin");
+         ++ (optional enableSeparateBinOutput "bin")
+         ++ (optional enableSeparateIntermediatesOutput "intermediates");
+
   setOutputFlags = false;
 
   pos = builtins.unsafeGetAttrPos "pname" args;
@@ -363,14 +379,14 @@ stdenv.mkDerivation ({
   # pkgs* arrays defined in stdenv/setup.hs
   + ''
     for p in "''${pkgsBuildBuild[@]}" "''${pkgsBuildHost[@]}" "''${pkgsBuildTarget[@]}"; do
-      ${buildPkgDb "${nativeGhcCommand}-${nativeGhc.version}" "$setupPackageConfDir"}
+      ${buildPkgDb nativeGhc "$setupPackageConfDir"}
     done
     ${nativeGhcCommand}-pkg --${nativePackageDbFlag}="$setupPackageConfDir" recache
   ''
   # For normal components
   + ''
     for p in "''${pkgsHostHost[@]}" "''${pkgsHostTarget[@]}"; do
-      ${buildPkgDb ghcNameWithPrefix "$packageConfDir"}
+      ${buildPkgDb ghc "$packageConfDir"}
       if [ -d "$p/include" ]; then
         configureFlags+=" --extra-include-dirs=$p/include"
       fi
@@ -389,7 +405,13 @@ stdenv.mkDerivation ({
   # only use the links hack if we're actually building dylibs. otherwise, the
   # "dynamic-library-dirs" point to nonexistent paths, and the ln command becomes
   # "ln -s $out/lib/links", which tries to recreate the links dir and fails
-  + (optionalString (stdenv.isDarwin && (enableSharedLibraries || enableSharedExecutables)) ''
+  #
+  # Note: We need to disable this work-around when using intermediate build
+  # products from a prior build because otherwise Nix will change permissions on
+  # the `$out/lib/links` directory to read-only when the build is done after the
+  # dist directory has already been exported, which triggers an unnecessary
+  # rebuild of modules included in the exported dist directory.
+  + (optionalString (stdenv.isDarwin && (enableSharedLibraries || enableSharedExecutables) && !enableSeparateIntermediatesOutput) ''
     # Work around a limit in the macOS Sierra linker on the number of paths
     # referenced by any one dynamic library:
     #
@@ -467,11 +489,22 @@ stdenv.mkDerivation ({
     runHook postConfigure
   '';
 
-  buildPhase = ''
-    runHook preBuild
-    ${setupCommand} build ${buildTarget}${crossCabalFlagsString}${buildFlagsString}
-    runHook postBuild
-  '';
+  buildPhase =
+      ''
+      runHook preBuild
+      ''
+    + lib.optionalString (previousIntermediates != null)
+        ''
+        mkdir -p dist;
+        rm -r dist/build
+        cp -r ${previousIntermediates}/${intermediatesDir}/build dist/build
+        find dist/build -exec chmod u+w {} +
+        find dist/build -exec touch -d '1970-01-01T00:00:00Z' {} +
+        ''
+    + ''
+      ${setupCommand} build ${buildTarget}${crossCabalFlagsString}${buildFlagsString}
+      runHook postBuild
+      '';
 
   inherit doCheck;
 
@@ -510,7 +543,7 @@ stdenv.mkDerivation ({
       # just the target specified; "install" will error here, since not all targets have been built.
     else ''
       ${setupCommand} copy ${buildTarget}
-      local packageConfDir="$out/lib/${ghcNameWithPrefix}/package.conf.d"
+      local packageConfDir="$out/${ghcLibdir}/package.conf.d"
       local packageConfFile="$packageConfDir/${pname}-${version}.conf"
       mkdir -p "$packageConfDir"
       ${setupCommand} register --gen-pkg-config=$packageConfFile
@@ -539,7 +572,7 @@ stdenv.mkDerivation ({
     ${optionalString doCoverage "mkdir -p $out/share && cp -r dist/hpc $out/share"}
     ${optionalString (enableSharedExecutables && isExecutable && !isGhcjs && stdenv.isDarwin && lib.versionOlder ghc.version "7.10") ''
       for exe in "${binDir}/"* ; do
-        install_name_tool -add_rpath "$out/lib/ghc-${ghc.version}/${pname}-${version}" "$exe"
+        install_name_tool -add_rpath "$out/${ghcLibdir}/${pname}-${version}" "$exe"
       done
     ''}
 
@@ -552,6 +585,15 @@ stdenv.mkDerivation ({
     ${optionalString enableSeparateDataOutput "mkdir -p $data"}
 
     runHook postInstall
+  '';
+
+  ${if doInstallIntermediates then "installIntermediatesPhase" else null} = ''
+    runHook preInstallIntermediates
+    intermediatesOutput=${if enableSeparateIntermediatesOutput then "$intermediates" else "$out"}
+    installIntermediatesDir="$intermediatesOutput/${intermediatesDir}"
+    mkdir -p "$installIntermediatesDir"
+    cp -r dist/build "$installIntermediatesDir"
+    runHook postInstallIntermediates
   '';
 
   passthru = passthru // rec {
@@ -656,7 +698,7 @@ stdenv.mkDerivation ({
           lib.optionals (!isCross) setupHaskellDepends);
 
         ghcCommandCaps = lib.toUpper ghcCommand';
-      in stdenv.mkDerivation ({
+      in stdenv.mkDerivation {
         inherit name shellHook;
 
         depsBuildBuild = lib.optional isCross ghcEnvForBuild;
@@ -675,8 +717,8 @@ stdenv.mkDerivation ({
         "NIX_${ghcCommandCaps}_DOCDIR" = "${ghcEnv}/share/doc/ghc/html";
         "NIX_${ghcCommandCaps}_LIBDIR" = if ghc.isHaLVM or false
           then "${ghcEnv}/lib/HaLVM-${ghc.version}"
-          else "${ghcEnv}/lib/${ghcCommand}-${ghc.version}";
-      });
+          else "${ghcEnv}/${ghcLibdir}";
+      };
 
     env = envFunc { };
 
@@ -715,6 +757,7 @@ stdenv.mkDerivation ({
 // optionalAttrs (args ? preFixup)               { inherit preFixup; }
 // optionalAttrs (args ? postFixup)              { inherit postFixup; }
 // optionalAttrs (args ? dontStrip)              { inherit dontStrip; }
+// optionalAttrs (postPhases != [])              { inherit postPhases; }
 // optionalAttrs (stdenv.buildPlatform.libc == "glibc"){ LOCALE_ARCHIVE = "${glibcLocales}/lib/locale/locale-archive"; }
 )
 )

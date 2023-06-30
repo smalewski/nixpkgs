@@ -1,33 +1,28 @@
 { lib
-, flutter
+, flutter37
 , python3
 , fetchFromGitHub
-, stdenv
 , pcre2
 , gnome
 , makeWrapper
 , removeReferencesTo
 }:
-let
-  vendorHashes = {
-    x86_64-linux = "sha256-BwhWA8N0S55XkljDKPNkDhsj0QSpmJJ5MwEnrPjymS8=";
-    aarch64-linux = "sha256-T1aGz3+2Sls+rkUVDUo39Ky2igg+dxGSUaf3qpV7ovQ=";
-  };
-in
-flutter.mkFlutterApp rec {
+
+flutter37.buildFlutterApplication rec {
   pname = "yubioath-flutter";
-  version = "6.0.2";
+  version = "6.1.0";
 
   src = fetchFromGitHub {
     owner = "Yubico";
     repo = "yubioath-flutter";
     rev = version;
-    sha256 = "13nh5qpq02c6azfdh4cbzhlrq0hs9is45q5z5cnxg84hrx26hd4k";
+    sha256 = "sha256-N9/qwC79mG9r+zMPLHSPjNSQ+srGtnXuKsf0ijtH7CI=";
   };
 
   passthru.helper = python3.pkgs.callPackage ./helper.nix { inherit src version meta; };
 
-  vendorHash = vendorHashes.${stdenv.system};
+  depsListFile = ./deps.json;
+  vendorHash = "sha256-WfZiB7MO4wHUg81xm67BMu4zQdC9CfhN5BQol+AI2S8=";
 
   postPatch = ''
     substituteInPlace linux/CMakeLists.txt \
@@ -67,7 +62,7 @@ flutter.mkFlutterApp rec {
       --replace "@EXEC_PATH/linux_support/com.yubico.yubioath.png" "$out/share/icons/com.yubico.yubioath.png"
 
     # Remove unnecessary references to Flutter.
-    remove-references-to -t ${flutter.unwrapped} $out/app/data/flutter_assets/shaders/ink_sparkle.frag
+    remove-references-to -t ${flutter37.unwrapped} $out/app/data/flutter_assets/shaders/ink_sparkle.frag
   '';
 
   nativeBuildInputs = [
@@ -80,8 +75,8 @@ flutter.mkFlutterApp rec {
   ];
 
   disallowedReferences = [
-    flutter
-    flutter.unwrapped
+    flutter37
+    flutter37.unwrapped
   ];
 
   meta = with lib; {
@@ -89,6 +84,6 @@ flutter.mkFlutterApp rec {
     homepage = "https://github.com/Yubico/yubioath-flutter";
     license = licenses.asl20;
     maintainers = with maintainers; [ lukegb ];
-    platforms = builtins.attrNames vendorHashes;
+    platforms = [ "x86_64-linux" "aarch64-linux" ];
   };
 }

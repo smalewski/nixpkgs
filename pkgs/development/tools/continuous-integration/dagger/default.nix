@@ -2,27 +2,28 @@
 
 buildGoModule rec {
   pname = "dagger";
-  version = "0.3.10";
+  version = "0.6.2";
 
   src = fetchFromGitHub {
     owner = "dagger";
     repo = "dagger";
     rev = "v${version}";
-    hash = "sha256-/JbKnDjC3C0mF4WHOmmvblrr/e1MhOws3Q/oXZCgdEM=";
+    hash = "sha256-cBaHj50j1jh2ASDbYHVw12GLD4afTVtyLeGrZtcdylY=";
   };
 
-  vendorHash = "sha256-wufztmiOwgY0Q6x9oMrJo28JGx8iprC1gr9zZjSWwuw=";
+  vendorHash = "sha256-fX6Lhc/OhPH1g2ANoxZmkADKhoDA3WsSb3cu1tKBjjw=";
   proxyVendor = true;
 
   subPackages = [
     "cmd/dagger"
   ];
 
-  ldflags = [ "-s" "-w" "-X github.com/dagger/dagger/internal/engine.Version=${version}" ];
+  ldflags = [ "-s" "-w" "-X=github.com/dagger/dagger/internal/engine.Version=${version}" ];
 
   passthru.tests.version = testers.testVersion {
     package = dagger;
     command = "dagger version";
+    version = "v${version}";
   };
 
   meta = with lib; {

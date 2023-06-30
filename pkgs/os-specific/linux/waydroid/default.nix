@@ -9,23 +9,23 @@
 , kmod
 , lxc
 , iproute2
-, nftables
+, iptables
 , util-linux
-, which
 , wrapGAppsHook
 , xclip
+, runtimeShell
 }:
 
 python3Packages.buildPythonApplication rec {
   pname = "waydroid";
-  version = "1.3.4";
+  version = "1.4.1";
   format = "other";
 
   src = fetchFromGitHub {
     owner = pname;
     repo = pname;
     rev = version;
-    sha256 = "sha256-0GBob9BUwiE5cFGdK8AdwsTjTOdc+AIWqUGN/gFfOqI=";
+    sha256 = "sha256-0AkNzMIumvgnVcLKX72E2+Eg54Y9j7tdIYPsroOTLWA=";
   };
 
   buildInputs = [
@@ -38,6 +38,7 @@ python3Packages.buildPythonApplication rec {
   ];
 
   propagatedBuildInputs = with python3Packages; [
+    dbus-python
     gbinder-python
     pyclip
     pygobject3
@@ -50,17 +51,19 @@ python3Packages.buildPythonApplication rec {
   dontWrapGApps = true;
 
   installPhase = ''
-    make install PREFIX=$out USE_SYSTEMD=0 USE_NFTABLES=1
+    make install PREFIX=$out USE_SYSTEMD=0
   '';
 
   preFixup = ''
     makeWrapperArgs+=("''${gappsWrapperArgs[@]}")
 
+    patchShebangs --host $out/lib/waydroid/data/scripts
     wrapProgram $out/lib/waydroid/data/scripts/waydroid-net.sh \
-       --prefix PATH ":" ${lib.makeBinPath [ dnsmasq getent iproute2 nftables ]}
+      --prefix PATH ":" ${lib.makeBinPath [ dnsmasq getent iproute2 iptables ]}
 
     wrapPythonProgramsIn $out/lib/waydroid/ "${lib.concatStringsSep " " [
       "$out"
+      python3Packages.dbus-python
       python3Packages.gbinder-python
       python3Packages.pygobject3
       python3Packages.pyclip
@@ -68,9 +71,11 @@ python3Packages.buildPythonApplication rec {
       kmod
       lxc
       util-linux
-      which
       xclip
     ]}"
+
+    substituteInPlace $out/lib/waydroid/tools/helpers/*.py \
+      --replace '"sh"' '"${runtimeShell}"'
   '';
 
   meta = with lib; {

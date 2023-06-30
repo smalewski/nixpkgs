@@ -6,14 +6,20 @@
 
 stdenv.mkDerivation rec {
   pname = "valgrind";
-  version = "3.20.0";
+  version = "3.21.0";
 
   src = fetchurl {
     url = "https://sourceware.org/pub/${pname}/${pname}-${version}.tar.bz2";
-    sha256 = "sha256-hTbAMdvgeNNC8SH6iBqezSBctaeOY5AFrVcAEb2588Y=";
+    hash = "sha256-EM4WGLs+M/rRbreVUrCj4SEXYkSKDX/OEcimJDuayXE=";
   };
 
   patches = [
+    # Fix build on ELFv2 powerpc64
+    # https://bugs.kde.org/show_bug.cgi?id=398883
+    (fetchurl {
+      url = "https://github.com/void-linux/void-packages/raw/3e16b4606235885463fc9ab45b4c120f1a51aa28/srcpkgs/valgrind/patches/elfv2-ppc64-be.patch";
+      sha256 = "NV/F+5aqFZz7+OF5oN5MUTpThv4H5PEY9sBgnnWohQY=";
+    })
     # Fix checks on Musl.
     # https://bugs.kde.org/show_bug.cgi?id=453929
     (fetchpatch {

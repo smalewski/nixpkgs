@@ -36,10 +36,7 @@ let
 
     debug = {
       # Necessary for BTF
-      DEBUG_INFO                = mkMerge [
-        (whenOlder "5.2" (if (features.debug or false) then yes else no))
-        (whenBetween "5.2" "5.18" yes)
-      ];
+      DEBUG_INFO                = yes;
       DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT = whenAtLeast "5.18" yes;
       # Reduced debug info conflict with BTF and have been enabled in
       # aarch64 defconfig since 5.13
@@ -62,6 +59,8 @@ let
       SUNRPC_DEBUG              = yes;
       # Provide access to tunables like sched_migration_cost_ns
       SCHED_DEBUG               = yes;
+
+      GDB_SCRIPTS               = yes;
     };
 
     power-management = {
@@ -70,12 +69,45 @@ let
       PM_ADVANCED_DEBUG                = yes;
       PM_WAKELOCKS                     = yes;
       POWERCAP                         = yes;
+      # ACPI Firmware Performance Data Table Support
+      ACPI_FPDT                        = whenAtLeast "5.12" (option yes);
+      # ACPI Heterogeneous Memory Attribute Table Support
+      ACPI_HMAT                        = whenAtLeast "5.2" (option yes);
+      # ACPI Platform Error Interface
+      ACPI_APEI                        = (option yes);
+      # APEI Generic Hardware Error Source
+      ACPI_APEI_GHES                   = (option yes);
+
+      # Enable lazy RCUs for power savings:
+      # https://lore.kernel.org/rcu/20221019225138.GA2499943@paulmck-ThinkPad-P17-Gen-1/
+      # RCU_LAZY depends on RCU_NOCB_CPU depends on NO_HZ_FULL
+      # depends on HAVE_VIRT_CPU_ACCOUNTING_GEN depends on 64BIT,
+      # so we can't force-enable this
+      RCU_LAZY                         = whenAtLeast "6.2" (option yes);
     } // optionalAttrs (stdenv.hostPlatform.isx86) {
       INTEL_IDLE                       = yes;
       INTEL_RAPL                       = whenAtLeast "5.3" module;
       X86_INTEL_LPSS                   = yes;
       X86_INTEL_PSTATE                 = yes;
       X86_AMD_PSTATE                   = whenAtLeast "5.17" yes;
+      # Intel DPTF (Dynamic Platform and Thermal Framework) Support
+      ACPI_DPTF                        = whenAtLeast "5.10" yes;
+
+      # Required to bring up some Bay Trail devices properly
+      I2C                              = yes;
+      I2C_DESIGNWARE_PLATFORM          = yes;
+      PMIC_OPREGION                    = whenAtLeast "5.10" yes;
+      INTEL_SOC_PMIC                   = whenAtLeast "5.10" yes;
+      BYTCRC_PMIC_OPREGION             = whenAtLeast "5.10" yes;
+      CHTCRC_PMIC_OPREGION             = whenAtLeast "5.10" yes;
+      XPOWER_PMIC_OPREGION             = whenAtLeast "5.10" yes;
+      BXT_WC_PMIC_OPREGION             = whenAtLeast "5.10" yes;
+      INTEL_SOC_PMIC_CHTWC             = whenAtLeast "5.10" yes;
+      CHT_WC_PMIC_OPREGION             = whenAtLeast "5.10" yes;
+      INTEL_SOC_PMIC_CHTDC_TI          = whenAtLeast "5.10" yes;
+      CHT_DC_TI_PMIC_OPREGION          = whenAtLeast "5.10" yes;
+      MFD_TPS68470                     = whenBetween "5.10" "5.13" yes;
+      TPS68470_PMIC_OPREGION           = whenAtLeast "5.10" yes;
     };
 
     external-firmware = {
@@ -92,6 +124,16 @@ let
     optimization = {
       # Optimize with -O2, not -Os
       CC_OPTIMIZE_FOR_SIZE = no;
+    };
+
+    memory = {
+      DAMON = whenAtLeast "5.15" yes;
+      DAMON_VADDR = whenAtLeast "5.15" yes;
+      DAMON_PADDR = whenAtLeast "5.16" yes;
+      DAMON_SYSFS = whenAtLeast "5.18" yes;
+      DAMON_DBGFS = whenAtLeast "5.15" yes;
+      DAMON_RECLAIM = whenAtLeast "5.16" yes;
+      DAMON_LRU_SORT = whenAtLeast "6.0" yes;
     };
 
     memtest = {
@@ -115,7 +157,8 @@ let
 
     timer = {
       # Enable Full Dynticks System.
-      NO_HZ_FULL = mkIf stdenv.is64bit yes; # TODO: more precise condition?
+      # NO_HZ_FULL depends on HAVE_VIRT_CPU_ACCOUNTING_GEN depends on 64BIT
+      NO_HZ_FULL = mkIf stdenv.is64bit yes;
     };
 
     # Enable NUMA.
@@ -273,9 +316,18 @@ let
       DRM_SIMPLEDRM = whenAtLeast "5.14" no;
     };
 
+    fonts = {
+      FONTS = yes;
+      # Default fonts enabled if FONTS is not set
+      FONT_8x8 = yes;
+      FONT_8x16 = yes;
+      # High DPI font
+      FONT_TER16x32 = whenAtLeast "5.0" yes;
+    };
+
     video = {
       DRM_LEGACY = no;
-      NOUVEAU_LEGACY_CTX_SUPPORT = whenAtLeast "5.2" no;
+      NOUVEAU_LEGACY_CTX_SUPPORT = whenBetween "5.2" "6.3" no;
 
       # Allow specifying custom EDID on the kernel command line
       DRM_LOAD_EDID_FIRMWARE = yes;
@@ -296,8 +348,9 @@ let
       DRM_AMD_DC_DCN2_0 = whenBetween "5.3" "5.6" yes;
       DRM_AMD_DC_DCN2_1 = whenBetween "5.4" "5.6" yes;
       DRM_AMD_DC_DCN3_0 = whenBetween "5.9" "5.11" yes;
-      DRM_AMD_DC_DCN = whenAtLeast "5.11" yes;
-      DRM_AMD_DC_HDCP = whenAtLeast "5.5" yes;
+      DRM_AMD_DC_DCN = whenBetween "5.11" "6.4" yes;
+      DRM_AMD_DC_FP = whenAtLeast "6.4" yes;
+      DRM_AMD_DC_HDCP = whenBetween "5.5" "6.4" yes;
       DRM_AMD_DC_SI = whenAtLeast "5.10" yes;
     } // optionalAttrs (stdenv.hostPlatform.system == "x86_64-linux") {
       # Intel GVT-g graphics virtualization supports 64-bit only
@@ -590,6 +643,11 @@ let
       RING_BUFFER_BENCHMARK = no;
     };
 
+    perf = {
+      # enable AMD Zen branch sampling if available
+      PERF_EVENTS_AMD_BRS       = whenAtLeast "5.19" (option yes);
+    };
+
     virtualisation = {
       PARAVIRT = option yes;
 
@@ -632,6 +690,9 @@ let
       XEN_SAVE_RESTORE            = option yes;
       XEN_SCRUB_PAGES             = whenOlder "4.19" yes;
       XEN_SELFBALLOONING          = whenOlder "5.3" yes;
+
+      # Enable device detection on virtio-mmio hypervisors
+      VIRTIO_MMIO_CMDLINE_DEVICES = yes;
     };
 
     media = {
@@ -657,10 +718,12 @@ let
     };
 
     zram = {
-      ZRAM     = module;
-      ZSWAP    = option yes;
-      ZBUD     = option yes;
-      ZSMALLOC = module;
+      ZRAM           = module;
+      ZRAM_WRITEBACK = option yes;
+      ZSWAP          = option yes;
+      ZPOOL          = yes;
+      ZBUD           = option yes;
+      ZSMALLOC       = module;
     };
 
     brcmfmac = {
@@ -883,6 +946,7 @@ let
 
       REGULATOR  = yes; # Voltage and Current Regulator Support
       RC_DEVICES = option yes; # Enable IR devices
+      RC_DECODERS = option yes; # Required for IR devices to work
 
       RT2800USB_RT53XX = yes;
       RT2800USB_RT55XX = yes;
@@ -945,7 +1009,7 @@ let
       FSL_MC_UAPI_SUPPORT = mkIf (stdenv.hostPlatform.system == "aarch64-linux") (whenAtLeast "5.12" yes);
 
       ASHMEM =                 { optional = true; tristate = whenBetween "5.0" "5.18" "y";};
-      ANDROID =                { optional = true; tristate = whenAtLeast "5.0" "y";};
+      ANDROID =                { optional = true; tristate = whenBetween "5.0" "5.19" "y";};
       ANDROID_BINDER_IPC =     { optional = true; tristate = whenAtLeast "5.0" "y";};
       ANDROID_BINDERFS =       { optional = true; tristate = whenAtLeast "5.0" "y";};
       ANDROID_BINDER_DEVICES = { optional = true; freeform = whenAtLeast "5.0" "binder,hwbinder,vndbinder";};
@@ -1002,6 +1066,8 @@ let
       CROS_EC_ISHTP = module;
 
       CROS_KBD_LED_BACKLIGHT = module;
+
+      TCG_TIS_SPI_CR50 = whenAtLeast "5.5" yes;
     } // optionalAttrs (versionAtLeast version "5.4" && stdenv.hostPlatform.system == "x86_64-linux") {
       CHROMEOS_LAPTOP = module;
       CHROMEOS_PSTORE = module;

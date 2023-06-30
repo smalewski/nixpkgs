@@ -4,30 +4,37 @@
 , makeWrapper
 , makeDesktopItem
 , copyDesktopItems
-, fixup_yarn_lock
 , yarn
 , nodejs
 , fetchYarnDeps
+, fixup_yarn_lock
 , electron
 , libpulseaudio
 , pipewire
+, alsa-utils
+, which
 }:
 
-stdenv.mkDerivation rec {
+stdenv.mkDerivation (finalAttrs: {
   pname = "teams-for-linux";
-  version = "1.0.45";
+  version = "1.1.8";
 
   src = fetchFromGitHub {
     owner = "IsmaelMartinez";
-    repo = pname;
-    rev = "v${version}";
-    sha256 = "sha256-Q6DFegFrLUW/YiRyYJI4ITVVyMC5IkazlzhdR8203cY=";
+    repo = "teams-for-linux";
+    rev = "v${finalAttrs.version}";
+    hash = "sha256-YbO5bDHbquuiokIyepqE8nM+IZDW+x6rzJqnzeqoS8Q=";
   };
 
   offlineCache = fetchYarnDeps {
-    yarnLock = src + "/yarn.lock";
-    sha256 = "sha256-jaAieO5q+tNfWN7Rp6ueasl45cfp9W1QxPdqIeCnVkE=";
+    yarnLock = "${finalAttrs.src}/yarn.lock";
+    hash = "sha256-Zk3TAoGAPeki/ogfNl/XqeBBn6N/kbNcktRHEyqPOAA=";
   };
+
+  patches = [
+    # Can be removed once Electron upstream resolves https://github.com/electron/electron/issues/36660
+    ./screensharing-wayland-hack-fix.patch
+  ];
 
   nativeBuildInputs = [ yarn fixup_yarn_lock nodejs copyDesktopItems makeWrapper ];
 
@@ -47,7 +54,7 @@ stdenv.mkDerivation rec {
     runHook preBuild
 
     yarn --offline electron-builder \
-      --dir --linux ${if stdenv.hostPlatform.isAarch64 then "--arm64" else "--x64"} \
+      --dir ${if stdenv.isDarwin then "--macos" else "--linux"} ${if stdenv.hostPlatform.isAarch64 then "--arm64" else "--x64"} \
       -c.electronDist=${electron}/lib/electron \
       -c.electronVersion=${electron.version}
 
@@ -58,7 +65,7 @@ stdenv.mkDerivation rec {
     runHook preInstall
 
     mkdir -p $out/share/{applications,teams-for-linux}
-    cp dist/linux-${lib.optionalString stdenv.hostPlatform.isAarch64 "arm64-"}unpacked/resources/app.asar $out/share/teams-for-linux/
+    cp dist/${if stdenv.isDarwin then "darwin-" else "linux-"}${lib.optionalString stdenv.hostPlatform.isAarch64 "arm64-"}unpacked/resources/app.asar $out/share/teams-for-linux/
 
     pushd build/icons
     for image in *png; do
@@ -67,8 +74,12 @@ stdenv.mkDerivation rec {
     done
     popd
 
+    # Linux needs 'aplay' for notification sounds, 'libpulse' for meeting sound, and 'libpipewire' for screen sharing
     makeWrapper '${electron}/bin/electron' "$out/bin/teams-for-linux" \
-      --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [ libpulseaudio pipewire ]} \
+      ${lib.optionalString stdenv.isLinux ''
+        --prefix PATH : ${lib.makeBinPath [ alsa-utils which ]} \
+        --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [ libpulseaudio pipewire ]} \
+      ''} \
       --add-flags "$out/share/teams-for-linux/app.asar" \
       --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations}}"
 
@@ -76,19 +87,22 @@ stdenv.mkDerivation rec {
   '';
 
   desktopItems = [(makeDesktopItem {
-    name = pname;
-    exec = pname;
-    icon = pname;
+    name = finalAttrs.pname;
+    exec = finalAttrs.pname;
+    icon = finalAttrs.pname;
     desktopName = "Microsoft Teams for Linux";
-    comment = meta.description;
+    comment = finalAttrs.meta.description;
     categories = [ "Network" "InstantMessaging" "Chat" ];
   })];
 
-  meta = with lib; {
+  passthru.updateScript = ./update.sh;
+
+  meta = {
     description = "Unofficial Microsoft Teams client for Linux";
     homepage = "https://github.com/IsmaelMartinez/teams-for-linux";
-    license = licenses.gpl3Only;
-    maintainers = with maintainers; [ muscaln ];
-    platforms = [ "x86_64-linux" "aarch64-linux" ];
+    license = lib.licenses.gpl3Only;
+    maintainers = with lib.maintainers; [ muscaln lilyinstarlight ];
+    platforms = lib.platforms.unix;
+    broken = stdenv.isDarwin;
   };
-}
+})

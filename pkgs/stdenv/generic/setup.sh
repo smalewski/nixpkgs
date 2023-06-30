@@ -28,10 +28,26 @@ if [ -n "$__structuredAttrs" ]; then
         # ex: out=/nix/store/...
         export "$outputName=${outputs[$outputName]}"
     done
-    # $NIX_ATTRS_JSON_FILE points to the wrong location in sandbox
-    # https://github.com/NixOS/nix/issues/6736
-    export NIX_ATTRS_JSON_FILE="$NIX_BUILD_TOP/.attrs.json"
-    export NIX_ATTRS_SH_FILE="$NIX_BUILD_TOP/.attrs.sh"
+
+    # Before Nix 2.4, $NIX_ATTRS_*_FILE was named differently:
+    # https://github.com/NixOS/nix/commit/27ce722
+    if [[ -n "${ATTRS_JSON_FILE:-}" ]]; then
+        export NIX_ATTRS_JSON_FILE="$ATTRS_JSON_FILE"
+    fi
+
+    if [[ -n "${ATTRS_SH_FILE:-}" ]]; then
+        export NIX_ATTRS_SH_FILE="$ATTRS_SH_FILE"
+    fi
+
+    # $NIX_ATTRS_JSON_FILE pointed to the wrong location in sandbox
+    # https://github.com/NixOS/nix/issues/6736; please keep around until the
+    # fix reaches *every patch version* that's >= lib/minver.nix
+    if ! [[ -e "${NIX_ATTRS_JSON_FILE:-}" ]]; then
+        export NIX_ATTRS_JSON_FILE="$NIX_BUILD_TOP/.attrs.json"
+    fi
+    if ! [[ -e "${NIX_ATTRS_SH_FILE:-}" ]]; then
+        export NIX_ATTRS_SH_FILE="$NIX_BUILD_TOP/.attrs.sh"
+    fi
 else
     : "${outputs:=out}"
 fi
@@ -305,12 +321,6 @@ _accumFlagsArray() {
 _addRpathPrefix() {
     if [ "${NIX_NO_SELF_RPATH:-0}" != 1 ]; then
         export NIX_LDFLAGS="-rpath $1/lib ${NIX_LDFLAGS-}"
-        if [ -n "${NIX_LIB64_IN_SELF_RPATH:-}" ]; then
-            export NIX_LDFLAGS="-rpath $1/lib64 ${NIX_LDFLAGS-}"
-        fi
-        if [ -n "${NIX_LIB32_IN_SELF_RPATH:-}" ]; then
-            export NIX_LDFLAGS="-rpath $1/lib32 ${NIX_LDFLAGS-}"
-        fi
     fi
 }
 
@@ -989,16 +999,58 @@ stripHash() {
 }
 
 
+recordPropagatedDependencies() {
+    # Propagate dependencies into the development output.
+    declare -ra flatVars=(
+        # Build
+        depsBuildBuildPropagated
+        propagatedNativeBuildInputs
+        depsBuildTargetPropagated
+        # Host
+        depsHostHostPropagated
+        propagatedBuildInputs
+        # Target
+        depsTargetTargetPropagated
+    )
+    declare -ra flatFiles=(
+        "${propagatedBuildDepFiles[@]}"
+        "${propagatedHostDepFiles[@]}"
+        "${propagatedTargetDepFiles[@]}"
+    )
+
+    local propagatedInputsIndex
+    for propagatedInputsIndex in "${!flatVars[@]}"; do
+        local propagatedInputsSlice="${flatVars[$propagatedInputsIndex]}[@]"
+        local propagatedInputsFile="${flatFiles[$propagatedInputsIndex]}"
+
+        [[ "${!propagatedInputsSlice}" ]] || continue
+
+        mkdir -p "${!outputDev}/nix-support"
+        # shellcheck disable=SC2086
+        printWords ${!propagatedInputsSlice} > "${!outputDev}/nix-support/$propagatedInputsFile"
+    done
+}
+
+
 unpackCmdHooks+=(_defaultUnpack)
 _defaultUnpack() {
     local fn="$1"
+    local destination
 
     if [ -d "$fn" ]; then
+
+        destination="$(stripHash "$fn")"
+
+        if [ -e "$destination" ]; then
+            echo "Cannot copy $fn to $destination: destination already exists!"
+            echo "Did you specify two \"srcs\" with the same \"name\"?"
+            return 1
+        fi
 
         # We can't preserve hardlinks because they may have been
         # introduced by store optimization, which might break things
         # in the build.
-        cp -pr --reflink=auto -- "$fn" "$(stripHash "$fn")"
+        cp -pr --reflink=auto -- "$fn" "$destination"
 
     else
 
@@ -1328,6 +1380,7 @@ installPhase() {
 
     # shellcheck disable=SC2086
     local flagsArray=(
+        ${enableParallelInstalling:+-j${NIX_BUILD_CORES}}
         SHELL=$SHELL
     )
     _accumFlagsArray makeFlags makeFlagsArray installFlags installFlagsArray
@@ -1364,36 +1417,8 @@ fixupPhase() {
     done
 
 
-    # Propagate dependencies & setup hook into the development output.
-    declare -ra flatVars=(
-        # Build
-        depsBuildBuildPropagated
-        propagatedNativeBuildInputs
-        depsBuildTargetPropagated
-        # Host
-        depsHostHostPropagated
-        propagatedBuildInputs
-        # Target
-        depsTargetTargetPropagated
-    )
-    declare -ra flatFiles=(
-        "${propagatedBuildDepFiles[@]}"
-        "${propagatedHostDepFiles[@]}"
-        "${propagatedTargetDepFiles[@]}"
-    )
-
-    local propagatedInputsIndex
-    for propagatedInputsIndex in "${!flatVars[@]}"; do
-        local propagatedInputsSlice="${flatVars[$propagatedInputsIndex]}[@]"
-        local propagatedInputsFile="${flatFiles[$propagatedInputsIndex]}"
-
-        [[ "${!propagatedInputsSlice}" ]] || continue
-
-        mkdir -p "${!outputDev}/nix-support"
-        # shellcheck disable=SC2086
-        printWords ${!propagatedInputsSlice} > "${!outputDev}/nix-support/$propagatedInputsFile"
-    done
-
+    # record propagated dependencies & setup hook into the development output.
+    recordPropagatedDependencies
 
     if [ -n "${setupHook:-}" ]; then
         mkdir -p "${!outputDev}/nix-support"

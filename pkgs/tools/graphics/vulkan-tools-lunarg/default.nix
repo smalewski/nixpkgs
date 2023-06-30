@@ -10,6 +10,7 @@
 , libXrandr
 , libffi
 , libxcb
+, pkg-config
 , wayland
 , which
 , xcbutilkeysyms
@@ -23,19 +24,17 @@
 
 stdenv.mkDerivation rec {
   pname = "vulkan-tools-lunarg";
-  # The version must match that in vulkan-headers
-  version = "1.3.236.0";
+  version = "1.3.250";
 
-  src = (assert version == vulkan-headers.version;
-    fetchFromGitHub {
-      owner = "LunarG";
-      repo = "VulkanTools";
-      rev = "sdk-${version}";
-      hash = "sha256-0dGD3InmEd9hO8+uVGMqBHXXfyX8tswyuOaZCftudz0=";
-      fetchSubmodules = true;
-    });
+  src = fetchFromGitHub {
+   owner = "LunarG";
+   repo = "VulkanTools";
+   rev = "v${version}";
+   hash = "sha256-oI2ITvciuE/f8ojFpIwcH+HnYCasz43nKkER3wJxX+c=";
+   fetchSubmodules = true;
+ };
 
-  nativeBuildInputs = [ cmake python3 jq which ];
+  nativeBuildInputs = [ cmake python3 jq which pkg-config ];
 
   buildInputs = [
     expat
@@ -82,7 +81,17 @@ stdenv.mkDerivation rec {
     done
   '';
 
-  patches = [ ./gtest.patch ];
+  patches = [
+    # Redefine an internal macro removed in vulkan-validation-layers
+    # FIXME: remove when fixed upstream
+    ./add-missing-macro-definition.patch
+
+    # Skip QNX-specific extension causing build failures
+    # FIXME: remove when fixed upstream
+    ./skip-qnx-extension.patch
+
+    ./gtest.patch
+  ];
 
   # Same as vulkan-validation-layers
   dontPatchELF = true;

@@ -17,7 +17,7 @@
 
 buildPythonPackage rec {
   pname = "uproot";
-  version = "5.0.2";
+  version = "5.0.9";
   format = "pyproject";
 
   disabled = pythonOlder "3.7";
@@ -26,7 +26,7 @@ buildPythonPackage rec {
     owner = "scikit-hep";
     repo = "uproot5";
     rev = "refs/tags/v${version}";
-    hash = "sha256-cklLbTO/EooQpq8vavKgloncSlyIX7DW+T9Cauyn6ng=";
+    hash = "sha256-7TCwVqSwgjM01FE3KMXBbvOKbLsk6xWNxQA46B45RFw=";
   };
 
   nativeBuildInputs = [

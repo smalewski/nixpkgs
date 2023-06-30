@@ -24,7 +24,7 @@
 
 buildPythonPackage rec {
   pname = "python-benedict";
-  version = "0.28.3";
+  version = "0.31.0";
   format = "setuptools";
 
   disabled = pythonOlder "3.7";
@@ -33,7 +33,7 @@ buildPythonPackage rec {
     owner = "fabiocaccamo";
     repo = pname;
     rev = "refs/tags/${version}";
-    hash = "sha256-6gzmVOuJfNpNJlea4Am20HI98mgcKkwtU/28l7qg20Y=";
+    hash = "sha256-fFxFpVKA6CdKwYRQCZb7iDrhLVmzaCr009Cv7CvMDyo=";
   };
 
   nativeBuildInputs = [

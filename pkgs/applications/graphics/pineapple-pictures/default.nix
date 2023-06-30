@@ -10,13 +10,13 @@
 
 stdenv.mkDerivation rec {
   pname = "pineapple-pictures";
-  version = "0.6.5";
+  version = "0.7.0";
 
   src = fetchFromGitHub {
     owner = "BLumia";
     repo = "pineapple-pictures";
     rev = version;
-    sha256 = "sha256-s4mJNPzrcg5UT8JC3D5ipaM8IvNFAK7e3V0TjVGeRdM=";
+    hash = "sha256-fNme11zoQBoFz4qJxBWzA8qHPwwxirM9rxxT36tjiQs";
   };
 
   nativeBuildInputs = [
@@ -30,11 +30,16 @@ stdenv.mkDerivation rec {
     exiv2
   ];
 
+  cmakeFlags = [
+    "-DPREFER_QT_5=OFF"
+  ];
+
   meta = with lib; {
     description = "Homebrew lightweight image viewer";
     homepage = "https://github.com/BLumia/pineapple-pictures";
     license = licenses.mit;
     platforms = platforms.linux;
+    mainProgram = "ppic";
     maintainers = with maintainers; [ rewine ];
   };
 }

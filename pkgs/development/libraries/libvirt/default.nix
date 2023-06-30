@@ -22,6 +22,7 @@
 , makeWrapper
 , meson
 , ninja
+, openssh
 , perl
 , perlPackages
 , polkit
@@ -91,6 +92,7 @@ let
     lvm2
     numactl
     numad
+    openssh
     pmutils
     systemd
   ] ++ lib.optionals enableIscsi [
@@ -112,13 +114,13 @@ stdenv.mkDerivation rec {
   # NOTE: You must also bump:
   # <nixpkgs/pkgs/development/python-modules/libvirt/default.nix>
   # SysVirt in <nixpkgs/pkgs/top-level/perl-packages.nix>
-  version = "9.0.0";
+  version = "9.4.0";
 
   src = fetchFromGitLab {
     owner = pname;
     repo = pname;
     rev = "v${version}";
-    sha256 = "sha256-YnkgTl6C3QkvMBGm95JgWmWaP4mAECe9B0wwjOx94p8=";
+    sha256 = "sha256-aYLXiZtbNXwJ8qmTHXv2OnyrYWK7KbwQWulTeuTbe0k=";
     fetchSubmodules = true;
   };
 
@@ -139,11 +141,13 @@ stdenv.mkDerivation rec {
     # delete only the first occurrence of this
     sed -i '0,/qemuxml2argvtest/{/qemuxml2argvtest/d;}' tests/meson.build
 
+  '' + lib.optionalString isLinux ''
     for binary in mount umount mkfs; do
       substituteInPlace meson.build \
         --replace "find_program('$binary'" "find_program('${lib.getBin util-linux}/bin/$binary'"
     done
 
+  '' + ''
     substituteInPlace meson.build \
       --replace "'dbus-daemon'," "'${lib.getBin dbus}/bin/dbus-daemon',"
   '' + lib.optionalString isLinux ''
@@ -156,6 +160,7 @@ stdenv.mkDerivation rec {
     sed -i '/domaincapstest/d' tests/meson.build
     sed -i '/qemufirmwaretest/d' tests/meson.build
     sed -i '/qemuvhostusertest/d' tests/meson.build
+    sed -i '/qemuxml2xmltest/d' tests/meson.build
   '' + lib.optionalString (isDarwin && isx86_64) ''
     sed -i '/qemucaps2xmltest/d' tests/meson.build
     sed -i '/qemuhotplugtest/d' tests/meson.build
@@ -269,7 +274,7 @@ stdenv.mkDerivation rec {
       (cfg "runstatedir" "/run")
 
       (cfg "init_script" (if isDarwin then "none" else "systemd"))
-      (cfg "qemu_datadir" (if isDarwin then "${qemu}/share/qemu" else ""))
+      (cfg "qemu_datadir" (lib.optionalString isDarwin "${qemu}/share/qemu"))
 
       (feat "apparmor" isLinux)
       (feat "attr" isLinux)
@@ -290,7 +295,7 @@ stdenv.mkDerivation rec {
       (feat "libpcap" true)
       (feat "libssh2" true)
       (feat "login_shell" isLinux)
-      (feat "nss" isLinux)
+      (feat "nss" (isLinux && !stdenv.hostPlatform.isMusl))
       (feat "numactl" isLinux)
       (feat "numad" isLinux)
       (feat "pciaccess" isLinux)

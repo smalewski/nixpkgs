@@ -14,14 +14,14 @@
 
 buildPythonPackage rec {
   pname = "pygit2";
-  version = "1.11.1";
+  version = "1.12.2";
   format = "setuptools";
 
   disabled = pythonOlder "3.7";
 
   src = fetchPypi {
     inherit pname version;
-    hash = "sha256-eT9YP9M2IPCsODdtsPV3aO8pIribRZ51saxEA3frZOw=";
+    hash = "sha256-VuhdDmbelX1ZnR77JAnTmv7v2PAQCb/aB5a0Kktng1g=";
   };
 
   preConfigure = lib.optionalString stdenv.isDarwin ''

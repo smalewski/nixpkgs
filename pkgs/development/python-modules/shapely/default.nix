@@ -12,14 +12,14 @@
 
 buildPythonPackage rec {
   pname = "shapely";
-  version = "2.0.0";
+  version = "2.0.1";
   format = "pyproject";
 
   disabled = pythonOlder "3.7";
 
   src = fetchPypi {
     inherit pname version;
-    hash = "sha256-EfGxIxpsBCE/sSJsaWjRsbOzaexC0ellUGavh2MYYOo=";
+    hash = "sha256-Zqaxo+cuzpf8hVNqKBR2+bd5TeLmRsqKRRfi48FEaJM=";
   };
 
   nativeBuildInputs = [
@@ -62,6 +62,6 @@ buildPythonPackage rec {
     description = "Manipulation and analysis of geometric objects";
     homepage = "https://github.com/shapely/shapely";
     license = licenses.bsd3;
-    maintainers = with maintainers; [ knedlsepp ];
+    maintainers = teams.geospatial.members;
   };
 }

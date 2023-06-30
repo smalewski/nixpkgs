@@ -1,6 +1,8 @@
 { lib
+, stdenv
 , buildPythonPackage
 , fetchFromGitHub
+, flatten-dict
 , funcy
 , matplotlib
 , tabulate
@@ -13,7 +15,7 @@
 
 buildPythonPackage rec {
   pname = "dvc-render";
-  version = "0.0.17";
+  version = "0.5.3";
   format = "pyproject";
 
   disabled = pythonOlder "3.7";
@@ -22,7 +24,7 @@ buildPythonPackage rec {
     owner = "iterative";
     repo = pname;
     rev = "refs/tags/${version}";
-    hash = "sha256-GDfrkcKP/EZZ/ONZ2Afoxj4Q8sp8mRmtZf93kXcNQcg=";
+    hash = "sha256-4nqImAYk4pYXSuE2/znzwjtf0349bydqi4iN69wG080=";
   };
 
   SETUPTOOLS_SCM_PRETEND_VERSION = version;
@@ -33,6 +35,7 @@ buildPythonPackage rec {
 
   passthru.optional-dependencies = {
     table = [
+      flatten-dict
       tabulate
     ];
     markdown = [
@@ -49,6 +52,10 @@ buildPythonPackage rec {
   ]
   ++ passthru.optional-dependencies.table
   ++ passthru.optional-dependencies.markdown;
+
+  disabledTestPaths = lib.optionals stdenv.isDarwin [
+    "tests/test_vega.py"
+  ];
 
   pythonImportsCheck = [
     "dvc_render"

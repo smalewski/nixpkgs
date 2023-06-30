@@ -14,13 +14,13 @@
 
 buildPythonPackage rec {
   pname = "ipydatawidgets";
-  version = "4.3.2";
+  version = "4.3.5";
 
   disabled = isPy27;
 
   src = fetchPypi {
     inherit pname version;
-    sha256 = "sha256-LyuZf2Vp0+4fT3412wyx2gjAd7IaiPHAHFn1uYajGqY=";
+    hash = "sha256-OU8kiVdlh8/XVTd6CaBn9GytIggZZQkgIf0avL54Uqg=";
   };
 
   nativeBuildInputs = [

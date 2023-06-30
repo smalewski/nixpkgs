@@ -8,13 +8,13 @@
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "svt-av1";
-  version = "1.4.1";
+  version = "1.5.0";
 
   src = fetchFromGitLab {
     owner = "AOMediaCodec";
     repo = "SVT-AV1";
     rev = "v${finalAttrs.version}";
-    sha256 = "sha256-jmr5egbuqLnBW7OFuaQk3F4s5xqTpXhWcJAfZySGWeU=";
+    sha256 = "sha256-EBWtvHOcFa6co0NeYns7Wkhz3LhqWJIRjBWfCrWJyss=";
   };
 
   nativeBuildInputs = [
@@ -43,6 +43,7 @@ stdenv.mkDerivation (finalAttrs: {
     license = with licenses; [ aom bsd3 ];
     maintainers = with maintainers; [ Madouura ];
     platforms = platforms.unix;
-    broken = stdenv.isAarch64; # undefined reference to `cpuinfo_arm_linux_init'
+    # error: use of undeclared identifier 'kCVPixelFormatType_444YpCbCr16BiPlanarVideoRange'
+    broken = stdenv.isAarch64 && stdenv.isDarwin;
   };
 })

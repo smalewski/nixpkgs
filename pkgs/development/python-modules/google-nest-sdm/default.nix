@@ -1,12 +1,12 @@
 { lib
 , aiohttp
-, asynctest
 , buildPythonPackage
 , coreutils
 , fetchFromGitHub
 , google-auth
 , google-auth-oauthlib
 , google-cloud-pubsub
+, pydantic
 , pytest-aiohttp
 , pytest-asyncio
 , pytestCheckHook
@@ -16,7 +16,7 @@
 
 buildPythonPackage rec {
   pname = "google-nest-sdm";
-  version = "2.2.4";
+  version = "2.2.5";
   format = "setuptools";
 
   disabled = pythonOlder "3.8";
@@ -25,7 +25,7 @@ buildPythonPackage rec {
     owner = "allenporter";
     repo = "python-google-nest-sdm";
     rev = "refs/tags/${version}";
-    hash = "sha256-HQzU6no/DV2QOC+LV7kUSrygTwgAvfMSmYIKaBd/PCE=";
+    hash = "sha256-UMP4FMyS8nAZmN7oKBZhMbqTgi4bSR/JmIeyWaZRZis=";
   };
 
   propagatedBuildInputs = [
@@ -33,11 +33,11 @@ buildPythonPackage rec {
     google-auth
     google-auth-oauthlib
     google-cloud-pubsub
+    pydantic
     requests-oauthlib
   ];
 
   nativeCheckInputs = [
-    asynctest
     coreutils
     pytest-aiohttp
     pytest-asyncio

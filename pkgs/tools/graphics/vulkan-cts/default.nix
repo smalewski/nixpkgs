@@ -2,6 +2,7 @@
 , fetchFromGitHub
 , fetchurl
 , cmake
+, ffmpeg_4
 , libdrm
 , libglvnd
 , libffi
@@ -17,6 +18,7 @@
 , vulkan-loader
 , wayland
 , wayland-protocols
+, wayland-scanner
 , zlib
 }:
 let
@@ -29,11 +31,18 @@ let
   # does not search for system-wide installations.
   # It also expects the version specified in the repository, which can be incompatible
   # with the version in nixpkgs (e.g. for SPIRV-Headers), so we don't want to patch in our packages.
+  # The revisions are extracted from https://github.com/KhronosGroup/VK-GL-CTS/blob/main/external/fetch_sources.py#L290
   amber = fetchFromGitHub {
     owner = "google";
     repo = "amber";
-    rev = "8b145a6c89dcdb4ec28173339dd176fb7b6f43ed";
-    hash = "sha256-+xFYlUs13khT6r475eJJ+XS875h2sb+YbJ8ZN4MOSAA=";
+    rev = "933ecb4d6288675a92eb1650e0f52b1d7afe8273";
+    hash = "sha256-v9z4gv/mTjaCkByZn6uDpMteQuIf0FzZXeKyoXfFjXo=";
+  };
+  esextractor = fetchFromGitHub {
+    owner = "Igalia";
+    repo = "ESExtractor";
+    rev = "v0.2.5";
+    hash = "sha256-A3lyTTarR1ZJrXcrLDR5D7H1kBwJNyrPPjEklRM9YBY=";
   };
   jsoncpp = fetchFromGitHub {
     owner = "open-source-parsers";
@@ -44,56 +53,65 @@ let
   glslang = fetchFromGitHub {
     owner = "KhronosGroup";
     repo = "glslang";
-    rev = "22d39cd684d136a81778cc17a0226ffad40d1cee";
-    hash = "sha256-6LplxN7HOMK1NfeD32P5JAMpCBlouttxLEOT/XTVpLw=";
+    rev = "cd2082e0584d4e39d11e3f401184e0d558ab304f";
+    hash = "sha256-j7O0j4E8lQ9tqAiuhnD/t6VL45OUvntsoKlhiuCXet4=";
   };
   spirv-tools = fetchFromGitHub {
     owner = "KhronosGroup";
     repo = "SPIRV-Tools";
-    rev = "b930e734ea198b7aabbbf04ee1562cf6f57962f0";
-    hash = "sha256-NWpFSRoxtYWi+hLUt9gpw0YScM3shcUwv9yUmbivRb0=";
+    rev = "01828dac778d08f4ebafd2e06bd419f6c84e5984";
+    hash = "sha256-i1rDMVpUiNdacDe20DsN67/rzK5V434EzfSv97y+xGU=";
   };
   spirv-headers = fetchFromGitHub {
     owner = "KhronosGroup";
     repo = "SPIRV-Headers";
-    rev = "36c0c1596225e728bd49abb7ef56a3953e7ed468";
-    hash = "sha256-t1UMJnYONWOtOxc9zUgxr901QFNvqkgurjpFA8UzhYc=";
+    rev = "1feaf4414eb2b353764d01d88f8aa4bcc67b60db";
+    hash = "sha256-VOq3r6ZcbDGGxjqC4IoPMGC5n1APUPUAs9xcRzxdyfk=";
+  };
+  video-parser = fetchFromGitHub {
+    owner = "nvpro-samples";
+    repo = "vk_video_samples";
+    rev = "7d68747d3524842afaf050c5e00a10f5b8c07904";
+    hash = "sha256-L5IYDm0bLq+NlNrzozu0VQx8zL1na6AhrkjZKxOWSnU=";
   };
   vulkan-docs = fetchFromGitHub {
     owner = "KhronosGroup";
     repo = "Vulkan-Docs";
-    rev = "135da3a538263ef0d194cab25e2bb091119bdc42";
-    hash = "sha256-VZ8JxIuOEG7IjsVcsJOcC+EQeZbd16/+czLcO9t7dY4=";
+    rev = "9fff8b252a3688c0231fa78709084bbe677d3bf7";
+    hash = "sha256-KpKsKTY5xCSZ5Y92roa0fq/iqc1hVJNS7l87RFcxyRQ=";
   };
 in
 stdenv.mkDerivation (finalAttrs: {
   pname = "vulkan-cts";
-  version = "1.3.4.1";
+  version = "1.3.6.0";
 
   src = fetchFromGitHub {
     owner = "KhronosGroup";
     repo = "VK-GL-CTS";
     rev = "${finalAttrs.pname}-${finalAttrs.version}";
-    hash = "sha256-XUFlYdudyRqa6iupB8N5QkUpumasyLLQEWcr4M4uP1g=";
+    hash = "sha256-PWkY5PFoxKosteRgbo6aRqGFHBkoEPFcg6NN8EquD8U=";
   };
 
   outputs = [ "out" "lib" ];
 
   prePatch = ''
-    mkdir -p external/renderdoc/src external/spirv-headers external/vulkan-docs
+    mkdir -p external/ESExtractor external/renderdoc/src external/spirv-headers external/video-parser external/vulkan-docs
 
     cp -r ${renderdoc} external/renderdoc/src/renderdoc_app.h
 
     cp -r ${amber} external/amber/src
+    cp -r ${esextractor} external/ESExtractor/src
     cp -r ${jsoncpp} external/jsoncpp/src
     cp -r ${glslang} external/glslang/src
     cp -r ${spirv-tools} external/spirv-tools/src
     cp -r ${spirv-headers} external/spirv-headers/src
+    cp -r ${video-parser} external/video-parser/src
     cp -r ${vulkan-docs} external/vulkan-docs/src
     chmod u+w -R external
   '';
 
   buildInputs = [
+    ffmpeg_4
     libdrm
     libffi
     libglvnd
@@ -116,13 +134,16 @@ stdenv.mkDerivation (finalAttrs: {
     ninja
     pkg-config
     python3
+    wayland-scanner
   ];
 
-  # Fix cts cmake not coping with absolute install dirs
   cmakeFlags = [
+    # Fix cts cmake not coping with absolute install dirs
     "-DCMAKE_INSTALL_BINDIR=bin"
     "-DCMAKE_INSTALL_LIBDIR=lib"
     "-DCMAKE_INSTALL_INCLUDEDIR=include"
+
+    "-DWAYLAND_SCANNER=wayland-scanner"
   ];
 
   postInstall = ''
@@ -141,6 +162,7 @@ stdenv.mkDerivation (finalAttrs: {
   meta = with lib; {
     description = "Khronos Vulkan Conformance Tests";
     homepage = "https://github.com/KhronosGroup/VK-GL-CTS/blob/main/external/vulkancts/README.md";
+    changelog = "https://github.com/KhronosGroup/VK-GL-CTS/releases/tag/${finalAttrs.pname}-${finalAttrs.version}";
     license = licenses.asl20;
     maintainers = with maintainers; [ Flakebi ];
   };

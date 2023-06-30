@@ -28,15 +28,17 @@
 
 let
   generic = { version, hash, extraBuildInputs ? [ ], extraNativeBuildInputs ? [ ], extraPatch ? "" }:
-    stdenv.mkDerivation rec {
+    stdenv.mkDerivation (finalAttrs: {
       pname = "wlroots";
       inherit version;
+
+      inherit enableXWayland;
 
       src = fetchFromGitLab {
         domain = "gitlab.freedesktop.org";
         owner = "wlroots";
         repo = "wlroots";
-        rev = version;
+        rev = finalAttrs.version;
         inherit hash;
       };
 
@@ -70,11 +72,11 @@ let
         xorg.xcbutilrenderutil
         xorg.xcbutilwm
       ]
-      ++ lib.optional enableXWayland xwayland
+      ++ lib.optional finalAttrs.enableXWayland xwayland
       ++ extraBuildInputs;
 
       mesonFlags =
-        lib.optional (!enableXWayland) "-Dxwayland=disabled"
+        lib.optional (!finalAttrs.enableXWayland) "-Dxwayland=disabled"
       ;
 
       postFixup = ''
@@ -98,13 +100,13 @@ let
           Pluggable, composable, unopinionated modules for building a Wayland
           compositor; or about 50,000 lines of code you were going to write anyway.
         '';
-        inherit (src.meta) homepage;
+        inherit (finalAttrs.src.meta) homepage;
         changelog = "https://gitlab.freedesktop.org/wlroots/wlroots/-/tags/${version}";
         license = licenses.mit;
         platforms = platforms.linux;
         maintainers = with maintainers; [ primeos synthetica ];
       };
-    };
+    });
 
 in
 rec {
@@ -121,8 +123,8 @@ rec {
   };
 
   wlroots_0_16 = generic {
-    version = "0.16.1";
-    hash = "sha256-UyPN7zmytre4emwx/ztZ4JefXHwixPV6UEEqnhSLbIY=";
+    version = "0.16.2";
+    hash = "sha256-JeDDYinio14BOl6CbzAPnJDOnrk4vgGNMN++rcy2ItQ=";
     extraBuildInputs = [ vulkan-loader ];
     extraNativeBuildInputs = [ glslang ];
     extraPatch = ''

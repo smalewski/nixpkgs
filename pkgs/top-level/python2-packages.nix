@@ -71,8 +71,6 @@ with self; with super; {
 
   scandir = callPackage ../development/python2-modules/scandir { };
 
-  sequoia = disabled super.sequoia;
-
   setuptools = callPackage ../development/python2-modules/setuptools { };
 
   setuptools-scm = callPackage ../development/python2-modules/setuptools-scm { };
@@ -82,6 +80,8 @@ with self; with super; {
   six = super.six.overridePythonAttrs (_: {
     doCheck = false;  # circular dependency with pytest
   });
+
+  wheel = callPackage ../development/python2-modules/wheel { };
 
   zeek = disabled super.zeek;
 

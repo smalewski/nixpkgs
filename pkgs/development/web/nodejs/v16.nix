@@ -10,10 +10,14 @@ let
 in
   buildNodejs {
     inherit enableNpm;
-    version = "16.19.0";
-    sha256 = "01k72p0hp4lhlpz1syd9cbkm2gpfww0hn10xdpmzd4i3x8dfq7sg";
+    # If you do upgrade here, please update in pkgs/top-level/release.nix
+    # the permitted insecure version to ensure it gets cached for our users
+    # and backport this to stable release (23.05).
+    version = "16.20.1";
+    sha256 = "sha256-g+AzgeJx8aVhkYjnrqnYXZt+EvW+KijOt41ySe0it/E=";
     patches = [
       ./disable-darwin-v8-system-instrumentation.patch
       ./bypass-darwin-xcrun-node16.patch
+      ./node-npm-build-npm-package-logic-node16.patch
     ] ++ npmPatches;
   }

@@ -1,39 +1,37 @@
 { lib
-, python3Packages
+, python3
+, fetchPypi
 , fetchFromGitHub
 }:
 
-python3Packages.buildPythonApplication rec {
+python3.pkgs.buildPythonApplication rec {
   pname = "flexget";
-  version = "3.5.21";
+  version = "3.7.7";
   format = "pyproject";
 
   # Fetch from GitHub in order to use `requirements.in`
   src = fetchFromGitHub {
-    owner = "flexget";
-    repo = "flexget";
+    owner = "Flexget";
+    repo = "Flexget";
     rev = "refs/tags/v${version}";
-    hash = "sha256-VVZvr0h98bWJW9FNFr3/pw7pSqF62hCnr6iv9xSzXf8=";
+    hash = "sha256-NBuiAaD7V4qTujsN8hoBYWzCCEmOTQb5qbpE0erh4oI=";
   };
 
   postPatch = ''
     # remove dependency constraints but keep environment constraints
     sed 's/[~<>=][^;]*//' -i requirements.txt
-
-    # "zxcvbn-python" was renamed to "zxcvbn", and we don't have the former in
-    # nixpkgs. See: https://github.com/NixOS/nixpkgs/issues/62110
-    substituteInPlace requirements.txt --replace "zxcvbn-python" "zxcvbn"
   '';
 
   # ~400 failures
   doCheck = false;
 
-  propagatedBuildInputs = with python3Packages; [
+  propagatedBuildInputs = with python3.pkgs; [
     # See https://github.com/Flexget/Flexget/blob/master/requirements.txt
-    APScheduler
+    apscheduler
     beautifulsoup4
     click
     colorama
+    commonmark
     feedparser
     guessit
     html5lib
@@ -44,7 +42,7 @@ python3Packages.buildPythonApplication rec {
     packaging
     psutil
     pynzb
-    PyRSS2Gen
+    pyrss2gen
     python-dateutil
     pyyaml
     rebulk
@@ -68,6 +66,11 @@ python3Packages.buildPythonApplication rec {
 
     # Plugins requirements
     transmission-rpc
+  ];
+
+  pythonImportsCheck = [
+    "flexget"
+    "flexget.plugins.clients.transmission"
   ];
 
   meta = with lib; {

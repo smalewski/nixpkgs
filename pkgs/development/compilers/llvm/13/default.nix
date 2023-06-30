@@ -5,7 +5,7 @@
 , targetLlvmLibraries # libraries, but from the next stage, for cross
 , targetLlvm
 # This is the default binutils, but with *this* version of LLD rather
-# than the default LLVM verion's, if LLD is the choice. We use these for
+# than the default LLVM version's, if LLD is the choice. We use these for
 # the `useLLVM` bootstrapping below.
 , bootBintoolsNoLibc ?
     if stdenv.targetPlatform.linker == "lld"
@@ -37,7 +37,17 @@ let
   llvm_meta = {
     license     = lib.licenses.ncsa;
     maintainers = lib.teams.llvm.members;
-    platforms   = lib.platforms.all;
+
+    # See llvm/cmake/config-ix.cmake.
+    platforms   =
+      lib.platforms.aarch64 ++
+      lib.platforms.arm ++
+      lib.platforms.mips ++
+      lib.platforms.power ++
+      lib.platforms.riscv ++
+      lib.platforms.s390x ++
+      lib.platforms.wasi ++
+      lib.platforms.x86;
   };
 
   tools = lib.makeExtensible (tools: let
@@ -70,13 +80,13 @@ let
 
     # `llvm` historically had the binaries.  When choosing an output explicitly,
     # we need to reintroduce `outputSpecified` to get the expected behavior e.g. of lib.get*
-    llvm = tools.libllvm.out // { outputSpecified = false; };
+    llvm = tools.libllvm;
 
     libclang = callPackage ./clang {
       inherit llvm_meta;
     };
 
-    clang-unwrapped = tools.libclang.out // { outputSpecified = false; };
+    clang-unwrapped = tools.libclang;
 
     llvm-manpages = lowPrio (tools.libllvm.override {
       enableManpages = true;
@@ -96,7 +106,8 @@ let
 
     # pick clang appropriate for package set we are targeting
     clang =
-      /**/ if stdenv.targetPlatform.useLLVM or false then tools.clangUseLLVM
+      /**/ if stdenv.targetPlatform.libc == null then tools.clangNoLibc
+      else if stdenv.targetPlatform.useLLVM or false then tools.clangUseLLVM
       else if (pkgs.targetPackages.stdenv or stdenv).cc.isGNU then tools.libstdcxxClang
       else tools.libcxxClang;
 
@@ -124,11 +135,36 @@ let
       inherit llvm_meta;
     };
 
-    lldb = callPackage ./lldb {
-      inherit llvm_meta;
-      inherit (darwin) libobjc bootstrap_cmds;
-      inherit (darwin.apple_sdk.libs) xpc;
-      inherit (darwin.apple_sdk.frameworks) Foundation Carbon Cocoa;
+    lldb = callPackage ../common/lldb.nix {
+      patches =
+        let
+          resourceDirPatch = callPackage ({ runCommand, libclang }: (runCommand "resource-dir.patch"
+            {
+              clangLibDir = "${libclang.lib}/lib";
+            } ''
+            substitute '${./lldb/resource-dir.patch}' "$out" --subst-var clangLibDir
+          '')) { };
+        in
+        [
+          ./lldb/procfs.patch
+          resourceDirPatch
+          ./lldb/gnu-install-dirs.patch
+        ]
+        # This is a stopgap solution if/until the macOS SDK used for x86_64 is
+        # updated.
+        #
+        # The older 10.12 SDK used on x86_64 as of this writing has a `mach/machine.h`
+        # header that does not define `CPU_SUBTYPE_ARM64E` so we replace the one use
+        # of this preprocessor symbol in `lldb` with its expansion.
+        #
+        # See here for some context:
+        # https://github.com/NixOS/nixpkgs/pull/194634#issuecomment-1272129132
+        ++ lib.optional (
+          stdenv.targetPlatform.isDarwin
+            && !stdenv.targetPlatform.isAarch64
+            && (lib.versionOlder darwin.apple_sdk.sdk.version "11.0")
+        ) ./lldb/cpu_subtype_arm64e_replacement.patch;
+      inherit llvm_meta release_version;
     };
 
     # Below, is the LLVM bootstrapping logic. It handles building a

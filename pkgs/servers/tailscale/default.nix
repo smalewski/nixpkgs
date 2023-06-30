@@ -1,16 +1,19 @@
 { lib, stdenv, buildGoModule, fetchFromGitHub, makeWrapper, iptables, iproute2, procps, shadow, getent }:
 
-buildGoModule rec {
+let
+  version = "1.44.0";
+in
+buildGoModule {
   pname = "tailscale";
-  version = "1.36.0";
+  inherit version;
 
   src = fetchFromGitHub {
     owner = "tailscale";
     repo = "tailscale";
     rev = "v${version}";
-    sha256 = "sha256-hNyEABs/GdfOx6vLTVBgbOzkbFvEDYZ0y1y0a0mIsfA=";
+    hash = "sha256-/SiQFkhVseLkjK7ePNzNyBs0r3XE3kHJ6CDTFjdCXec=";
   };
-  vendorSha256 = "sha256-Jy3kjUA8qLhcw9XLw4Xo1zhD+IWZrDNM79TsbnKpx/g=";
+  vendorHash = "sha256-fgCrmtJs1svFz0Xn7iwLNrbBNlcO6V0yqGPMY0+V1VQ=";
 
   nativeBuildInputs = lib.optionals stdenv.isLinux [ makeWrapper ];
 
@@ -18,7 +21,12 @@ buildGoModule rec {
 
   subPackages = [ "cmd/tailscale" "cmd/tailscaled" ];
 
-  ldflags = [ "-X tailscale.com/version.Long=${version}" "-X tailscale.com/version.Short=${version}" ];
+  ldflags = [
+    "-w"
+    "-s"
+    "-X tailscale.com/version.longStamp=${version}"
+    "-X tailscale.com/version.shortStamp=${version}"
+  ];
 
   doCheck = false;
 

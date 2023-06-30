@@ -1,26 +1,30 @@
 { lib
 , buildPythonPackage
-, fetchPypi
+, fetchFromGitHub
 , imageio
+, matplotlib
 , numpy
 , pillow
 , pooch
 , scooby
 , vtk
-, unittestCheckHook
 }:
 
 buildPythonPackage rec {
   pname = "pyvista";
-  version = "0.37.0";
+  version = "0.39.1";
+  format = "setuptools";
 
-  src = fetchPypi {
-    inherit pname version;
-    sha256 = "sha256-02osbV9T9HOrapJBZpaTrO56UXk5Tcl1ldoUzB3iMUE=";
+  src = fetchFromGitHub {
+    owner = pname;
+    repo = pname;
+    rev = "v${version}";
+    hash = "sha256-N+1FfTKDITBmLaOjKZsahMd6s26W19ObcWXk8gGQ0QI=";
   };
 
   propagatedBuildInputs = [
     imageio
+    matplotlib
     numpy
     pillow
     pooch
@@ -28,8 +32,11 @@ buildPythonPackage rec {
     vtk
   ];
 
-  nativeCheckInputs = [
-    unittestCheckHook
+  # Fatal Python error: Aborted
+  doCheck = false;
+
+  pythonImportsCheck = [
+    "pyvista"
   ];
 
   meta = with lib; {

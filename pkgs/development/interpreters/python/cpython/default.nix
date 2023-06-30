@@ -17,6 +17,7 @@
 , libxcrypt
 , self
 , configd
+, darwin
 , autoreconfHook
 , autoconf-archive
 , pkg-config
@@ -30,7 +31,7 @@
 , pkgsHostHost
 , pkgsTargetTarget
 , sourceVersion
-, sha256
+, hash
 , passthruFun
 , bash
 , stripConfig ? false
@@ -41,6 +42,7 @@
 , stripBytecode ? true
 , includeSiteCustomize ? true
 , static ? stdenv.hostPlatform.isStatic
+, enableFramework ? false
 , enableOptimizations ? false
 # enableNoSemanticInterposition is a subset of the enableOptimizations flag that doesn't harm reproducibility.
 # clang starts supporting `-fno-sematic-interposition` with version 10
@@ -51,6 +53,7 @@
 , enableLTO ? stdenv.is64bit && stdenv.isLinux
 , reproducibleBuild ? false
 , pythonAttr ? "python${sourceVersion.major}${sourceVersion.minor}"
+, noldconfigPatch ? ./. + "/${sourceVersion.major}.${sourceVersion.minor}/no-ldconfig.patch"
 } @ inputs:
 
 # Note: this package is used for bootstrapping fetchurl, and thus
@@ -64,6 +67,8 @@ assert x11Support -> tcl != null
                   && libX11 != null;
 
 assert bluezSupport -> bluez != null;
+
+assert enableFramework -> stdenv.isDarwin;
 
 assert lib.assertMsg (reproducibleBuild -> stripBytecode)
   "Deterministic builds require stripping bytecode.";
@@ -84,6 +89,8 @@ let
   buildPackages = pkgsBuildHost;
   inherit (passthru) pythonForBuild;
 
+  inherit (darwin.apple_sdk.frameworks) Cocoa;
+
   tzdataSupport = tzdata != null && passthru.pythonAtLeast "3.9";
 
   passthru = let
@@ -102,7 +109,7 @@ let
     pythonOnBuildForHost = override pkgsBuildHost.${pythonAttr};
     pythonOnBuildForTarget = override pkgsBuildTarget.${pythonAttr};
     pythonOnHostForHost = override pkgsHostHost.${pythonAttr};
-    pythonOnTargetForTarget = if lib.hasAttr pythonAttr pkgsTargetTarget then (override pkgsTargetTarget.${pythonAttr}) else {};
+    pythonOnTargetForTarget = lib.optionalAttrs (lib.hasAttr pythonAttr pkgsTargetTarget) (override pkgsTargetTarget.${pythonAttr});
   };
 
   version = with sourceVersion; "${major}.${minor}.${patch}${suffix}";
@@ -125,6 +132,8 @@ let
     ++ optionals x11Support [ tcl tk libX11 xorgproto ]
     ++ optionals (bluezSupport && stdenv.isLinux) [ bluez ]
     ++ optionals stdenv.isDarwin [ configd ])
+
+    ++ optionals enableFramework [ Cocoa ]
     ++ optionals tzdataSupport [ tzdata ];  # `zoneinfo` module
 
   hasDistutilsCxxPatch = !(stdenv.cc.isGNU or false);
@@ -132,6 +141,11 @@ let
   pythonForBuildInterpreter = if stdenv.hostPlatform == stdenv.buildPlatform then
     "$out/bin/python"
   else pythonForBuild.interpreter;
+
+  src = fetchurl {
+    url = with sourceVersion; "https://www.python.org/ftp/python/${major}.${minor}.${patch}/Python-${version}.tar.xz";
+    inherit hash;
+  };
 
   # The CPython interpreter contains a _sysconfigdata_<platform specific suffix>
   # module that is imported by the sysconfig and distutils.sysconfig modules.
@@ -208,15 +222,11 @@ let
 
 in with passthru; stdenv.mkDerivation {
   pname = "python3";
-  inherit version;
+  inherit src version;
 
   inherit nativeBuildInputs;
   buildInputs = [ bash ] ++ buildInputs; # bash is only for patchShebangs
 
-  src = fetchurl {
-    url = with sourceVersion; "https://www.python.org/ftp/python/${major}.${minor}.${patch}/Python-${version}.tar.xz";
-    inherit sha256;
-  };
 
   prePatch = optionalString stdenv.isDarwin ''
     substituteInPlace configure --replace '`/usr/bin/arch`' '"i386"'
@@ -235,7 +245,7 @@ in with passthru; stdenv.mkDerivation {
       url = "https://github.com/python/cpython/commit/3fae04b10e2655a20a3aadb5e0d63e87206d0c67.diff";
       revert = true;
       excludes = [ "Misc/NEWS.d/*" ];
-      sha256 = "sha256-PmkXf2D9trtW1gXZilRIWgdg2Y47JfELq1z4DuG3wJY=";
+      hash = "sha256-PmkXf2D9trtW1gXZilRIWgdg2Y47JfELq1z4DuG3wJY=";
     })
   ] ++ [
     # Disable the use of ldconfig in ctypes.util.find_library (since
@@ -243,7 +253,7 @@ in with passthru; stdenv.mkDerivation {
     # ctypes.util.find_library during the loading of the uuid module
     # (since it will do a futile invocation of gcc (!) to find
     # libuuid, slowing down program startup a lot).
-    (./. + "/${sourceVersion.major}.${sourceVersion.minor}/no-ldconfig.patch")
+    noldconfigPatch
     # Make sure that the virtualenv activation scripts are
     # owner-writable, so venvs can be recreated without permission
     # errors.
@@ -275,11 +285,14 @@ in with passthru; stdenv.mkDerivation {
           sha256 = "1h18lnpx539h5lfxyk379dxwr8m2raigcjixkf133l4xy3f4bzi2";
         }
     )
-  ] ++ optionals (pythonOlder "3.12") [
+  ] ++ optionals (pythonAtLeast "3.7" && pythonOlder "3.12") [
     # LDSHARED now uses $CC instead of gcc. Fixes cross-compilation of extension modules.
     ./3.8/0001-On-all-posix-systems-not-just-Darwin-set-LDSHARED-if.patch
     # Use sysconfigdata to find headers. Fixes cross-compilation of extension modules.
     ./3.7/fix-finding-headers-when-cross-compiling.patch
+  ] ++ optionals stdenv.hostPlatform.isLoongArch64 [
+    # https://github.com/python/cpython/issues/90656
+    ./loongarch-support.patch
   ];
 
   postPatch = ''
@@ -308,8 +321,10 @@ in with passthru; stdenv.mkDerivation {
     "--without-ensurepip"
     "--with-system-expat"
     "--with-system-ffi"
-  ] ++ optionals (!static) [
+  ] ++ optionals (!static && !enableFramework) [
     "--enable-shared"
+  ] ++ optionals enableFramework [
+    "--enable-framework=${placeholder "out"}/Library/Frameworks"
   ] ++ optionals enableOptimizations [
     "--enable-optimizations"
   ] ++ optionals enableLTO [
@@ -362,6 +377,9 @@ in with passthru; stdenv.mkDerivation {
   '' + optionalString stdenv.isDarwin ''
     # Override the auto-detection in setup.py, which assumes a universal build
     export PYTHON_DECIMAL_WITH_MACHINE=${if stdenv.isAarch64 then "uint128" else "x64"}
+  '' + optionalString (stdenv.isDarwin && x11Support && pythonAtLeast "3.11") ''
+    export TCLTK_LIBS="-L${tcl}/lib -L${tk}/lib -l${tcl.libPrefix} -l${tk.libPrefix}"
+    export TCLTK_CFLAGS="-I${tcl}/include -I${tk}/include"
   '' + optionalString (isPy3k && pythonOlder "3.7") ''
     # Determinism: The interpreter is patched to write null timestamps when compiling Python files
     #   so Python doesn't try to update the bytecode when seeing frozen timestamps in Nix's store.
@@ -390,7 +408,11 @@ in with passthru; stdenv.mkDerivation {
     ] ++ optionals tzdataSupport [
       tzdata
     ]);
-  in ''
+  in lib.optionalString enableFramework ''
+    for dir in include lib share; do
+      ln -s $out/Library/Frameworks/Python.framework/Versions/Current/$dir $out/$dir
+    done
+  '' + ''
     # needed for some packages, especially packages that backport functionality
     # to 2.x from 3.x
     for item in $out/lib/${libPrefix}/test/*; do
@@ -469,6 +491,16 @@ in with passthru; stdenv.mkDerivation {
     # bytecode compilations for the same reason - we don't want bytecode generated.
     mkdir -p $out/share/gdb
     sed '/^#!/d' Tools/gdb/libpython.py > $out/share/gdb/libpython.py
+
+    # Disable system-wide pip installation. See https://peps.python.org/pep-0668/.
+    cat <<'EXTERNALLY_MANAGED' > $out/lib/${libPrefix}/EXTERNALLY-MANAGED
+    [externally-managed]
+    Error=This command has been disabled as it tries to modify the immutable
+     `/nix/store` filesystem.
+
+     To use Python with Nix and nixpkgs, have a look at the online documentation:
+     <https://nixos.org/manual/nixpkgs/stable/#python>.
+    EXTERNALLY_MANAGED
   '';
 
   preFixup = lib.optionalString (stdenv.hostPlatform != stdenv.buildPlatform) ''
@@ -487,7 +519,7 @@ in with passthru; stdenv.mkDerivation {
   # Enforce that we don't have references to the OpenSSL -dev package, which we
   # explicitly specify in our configure flags above.
   disallowedReferences =
-    lib.optionals (openssl' != null && !static) [ openssl'.dev ]
+    lib.optionals (openssl' != null && !static && !enableFramework) [ openssl'.dev ]
     ++ lib.optionals (stdenv.hostPlatform != stdenv.buildPlatform) [
     # Ensure we don't have references to build-time packages.
     # These typically end up in shebangs.
@@ -496,7 +528,24 @@ in with passthru; stdenv.mkDerivation {
 
   separateDebugInfo = true;
 
-  inherit passthru;
+  passthru = passthru // {
+    doc = stdenv.mkDerivation {
+      inherit src;
+      name = "python${pythonVersion}-${version}-doc";
+
+      dontConfigure = true;
+
+      dontBuild = true;
+
+      sphinxRoot = "Doc";
+
+      postInstallSphinx = ''
+        mv $out/share/doc/* $out/share/doc/python${pythonVersion}-${version}
+      '';
+
+      nativeBuildInputs = with pkgsBuildBuild.python3.pkgs; [ sphinxHook python_docs_theme ];
+    };
+  };
 
   enableParallelBuilding = true;
 
@@ -521,7 +570,7 @@ in with passthru; stdenv.mkDerivation {
       high level dynamic data types.
     '';
     license = licenses.psfl;
-    platforms = with platforms; linux ++ darwin;
+    platforms = platforms.linux ++ platforms.darwin;
     maintainers = with maintainers; [ fridh ];
   };
 }

@@ -17,63 +17,19 @@
 }:
 
 let
-  version = "1.12.2";
+  version = "1.16.5";
 
   src = fetchFromGitHub {
     owner = "paperless-ngx";
     repo = "paperless-ngx";
     rev = "refs/tags/v${version}";
-    hash = "sha256-1QufnRD2Nbc4twRZ4Yrf3ae1BRGves8tJ/M7coWnRPI=";
+    hash = "sha256-suwXFqq3QSdY0KzSpr6NKPwm6xtMBR8aP5VV3XTynqI=";
   };
 
   # Use specific package versions required by paperless-ngx
   python = python3.override {
     packageOverrides = self: super: {
       django = super.django_4;
-
-      aioredis = super.aioredis.overridePythonAttrs (oldAttrs: rec {
-        version = "1.3.1";
-        src = oldAttrs.src.override {
-          inherit version;
-          sha256 = "0fi7jd5hlx8cnv1m97kv9hc4ih4l8v15wzkqwsp73is4n0qazy0m";
-        };
-      });
-
-      # downgrade redis due to https://github.com/paperless-ngx/paperless-ngx/pull/1802
-      # and https://github.com/django/channels_redis/issues/332
-      channels-redis = super.channels-redis.overridePythonAttrs (oldAttrs: rec {
-        version = "3.4.1";
-        src = fetchFromGitHub {
-          owner = "django";
-          repo = "channels_redis";
-          rev = version;
-          hash = "sha256-ZQSsE3pkM+nfDhWutNuupcyC5MDikUu6zU4u7Im6bRQ=";
-        };
-      });
-
-      channels = super.channels.overridePythonAttrs (oldAttrs: rec {
-        version = "3.0.5";
-        pname = "channels";
-        src = fetchFromGitHub {
-          owner = "django";
-          repo = pname;
-          rev = version;
-          sha256 = "sha256-bKrPLbD9zG7DwIYBst1cb+zkDsM8B02wh3D80iortpw=";
-        };
-        propagatedBuildInputs = oldAttrs.propagatedBuildInputs ++ [ self.daphne ];
-        pytestFlagsArray = [ "--asyncio-mode=auto" ];
-      });
-
-      daphne = super.daphne.overridePythonAttrs (oldAttrs: rec {
-        version = "3.0.2";
-        pname = "daphne";
-        src = fetchFromGitHub {
-          owner = "django";
-          repo = pname;
-          rev = version;
-          hash = "sha256-KWkMV4L7bA2Eo/u4GGif6lmDNrZAzvYyDiyzyWt9LeI=";
-        };
-      });
     };
   };
 
@@ -93,7 +49,7 @@ let
     pname = "paperless-ngx-frontend";
     inherit version src;
 
-    npmDepsHash = "sha256-fp0Gy3018u2y6jaUM9bmXU0SVjyEJdsvkBqbmb8S10Y=";
+    npmDepsHash = "sha256-rzIDivZTZZWt6kgLt8mstYmvv5TlC+O8O/g01+aLMHQ=";
 
     nativeBuildInputs = [
       python3
@@ -109,6 +65,13 @@ let
     npmBuildFlags = [
       "--" "--configuration" "production"
     ];
+
+    doCheck = true;
+    checkPhase = ''
+      runHook preCheck
+      npm run test
+      runHook postCheck
+    '';
 
     installPhase = ''
       runHook preInstall
@@ -129,7 +92,6 @@ python.pkgs.buildPythonApplication rec {
   ];
 
   propagatedBuildInputs = with python.pkgs; [
-    aioredis
     amqp
     anyio
     asgiref
@@ -153,19 +115,22 @@ python.pkgs.buildPythonApplication rec {
     concurrent-log-handler
     constantly
     cryptography
-    daphne
     dateparser
     django-celery-results
     django-cors-headers
+    django-compression-middleware
     django-extensions
     django-filter
+    django-guardian
     django
+    djangorestframework-guardian2
     djangorestframework
     filelock
     gunicorn
     h11
     hiredis
     httptools
+    httpx
     humanfriendly
     humanize
     hyperlink
@@ -181,12 +146,10 @@ python.pkgs.buildPythonApplication rec {
     msgpack
     mysqlclient
     nltk
-    numpy
     ocrmypdf
     packaging
     pathvalidate
     pdf2image
-    pdfminer-six
     pikepdf
     pillow
     pluggy
@@ -199,6 +162,7 @@ python.pkgs.buildPythonApplication rec {
     pyopenssl
     python-dateutil
     python-dotenv
+    python-ipware
     python-gnupg
     python-magic
     pytz
@@ -216,7 +180,7 @@ python.pkgs.buildPythonApplication rec {
     sniffio
     sqlparse
     threadpoolctl
-    tika
+    tika-client
     tornado
     tqdm
     twisted
@@ -236,6 +200,7 @@ python.pkgs.buildPythonApplication rec {
     whoosh
     zipp
     zope_interface
+    zxing_cpp
   ]
   ++ redis.optional-dependencies.hiredis
   ++ twisted.optional-dependencies.tls
@@ -244,13 +209,13 @@ python.pkgs.buildPythonApplication rec {
   postBuild = ''
     # Compile manually because `pythonRecompileBytecodeHook` only works
     # for files in `python.sitePackages`
-    ${python.interpreter} -OO -m compileall src
+    ${python.pythonForBuild.interpreter} -OO -m compileall src
 
     # Collect static files
-    ${python.interpreter} src/manage.py collectstatic --clear --no-input
+    ${python.pythonForBuild.interpreter} src/manage.py collectstatic --clear --no-input
 
     # Compile string translations using gettext
-    ${python.interpreter} src/manage.py compilemessages
+    ${python.pythonForBuild.interpreter} src/manage.py compilemessages
   '';
 
   installPhase = ''
@@ -272,12 +237,16 @@ python.pkgs.buildPythonApplication rec {
   '';
 
   nativeCheckInputs = with python.pkgs; [
+    daphne
     factory_boy
     imagehash
+    pdfminer-six
     pytest-django
     pytest-env
+    pytest-httpx
     pytest-xdist
     pytestCheckHook
+    reportlab
   ];
 
   pytestFlagsArray = [
@@ -295,7 +264,7 @@ python.pkgs.buildPythonApplication rec {
 
     # Disable unneeded code coverage test
     substituteInPlace src/setup.cfg \
-      --replace "--cov --cov-report=html" ""
+      --replace "--cov --cov-report=html --cov-report=xml" ""
     # OCR on NixOS recognizes the space in the picture, upstream CI doesn't.
     # See https://github.com/paperless-ngx/paperless-ngx/pull/2216
     substituteInPlace src/paperless_tesseract/tests/test_parser.py \
@@ -317,9 +286,10 @@ python.pkgs.buildPythonApplication rec {
 
   meta = with lib; {
     description = "Tool to scan, index, and archive all of your physical documents";
-    homepage = "https://paperless-ngx.readthedocs.io/";
+    homepage = "https://docs.paperless-ngx.com/";
     changelog = "https://github.com/paperless-ngx/paperless-ngx/releases/tag/v${version}";
     license = licenses.gpl3Only;
-    maintainers = with maintainers; [ lukegb gador erikarvstedt ];
+    platforms = platforms.linux;
+    maintainers = with maintainers; [ lukegb gador erikarvstedt leona ];
   };
 }

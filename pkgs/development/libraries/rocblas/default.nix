@@ -27,7 +27,7 @@
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "rocblas";
-  version = "5.4.2";
+  version = "5.4.3";
 
   outputs = [
     "out"
@@ -41,7 +41,7 @@ stdenv.mkDerivation (finalAttrs: {
     owner = "ROCmSoftwarePlatform";
     repo = "rocBLAS";
     rev = "rocm-${finalAttrs.version}";
-    hash = "sha256-4art8/KwH2KDLwSYcyzn/m/xwdg5wQQvgHks73aB+60=";
+    hash = "sha256-XhYpzBXviMnUdbF6lZi9g0LARKpzWLtDxJxLI3MuHiM=";
   };
 
   nativeBuildInputs = [
@@ -125,6 +125,8 @@ stdenv.mkDerivation (finalAttrs: {
     owner = finalAttrs.src.owner;
     repo = finalAttrs.src.repo;
   };
+
+  requiredSystemFeatures = [ "big-parallel" ];
 
   meta = with lib; {
     description = "BLAS implementation for ROCm platform";

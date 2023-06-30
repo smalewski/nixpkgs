@@ -2,11 +2,11 @@
 
 stdenvNoCC.mkDerivation rec {
   pname = "spleen";
-  version = "1.9.1";
+  version = "2.0.0";
 
   src = fetchurl {
     url = "https://github.com/fcambus/spleen/releases/download/${version}/spleen-${version}.tar.gz";
-    hash = "sha256-fvWcTgKkXp3e1ryhi1Oc3w8OtJ5svLJXhY2lasXapiI=";
+    hash = "sha256-d4d4s13UhwG4A9skemrIdZFUzl/Dq9XMC225ikS6Wgw=";
   };
 
   nativeBuildInputs = [ xorg.mkfontscale ];

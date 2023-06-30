@@ -78,7 +78,7 @@ let
       composeManyExtensions makeExtensible makeExtensibleWithCustomName;
     inherit (self.attrsets) attrByPath hasAttrByPath setAttrByPath
       getAttrFromPath attrVals attrValues getAttrs catAttrs filterAttrs
-      filterAttrsRecursive foldAttrs collect nameValuePair mapAttrs
+      filterAttrsRecursive foldlAttrs foldAttrs collect nameValuePair mapAttrs
       mapAttrs' mapAttrsToList concatMapAttrs mapAttrsRecursive mapAttrsRecursiveCond
       genAttrs isDerivation toDerivation optionalAttrs
       zipAttrsWithNames zipAttrsWith zipAttrs recursiveUpdateUntil
@@ -88,7 +88,7 @@ let
       updateManyAttrsByPath;
     inherit (self.lists) singleton forEach foldr fold foldl foldl' imap0 imap1
       concatMap flatten remove findSingle findFirst any all count
-      optional optionals toList range partition zipListsWith zipLists
+      optional optionals toList range replicate partition zipListsWith zipLists
       reverseList listDfs toposort sort naturalSort compareLists take
       drop sublist last init crossLists unique intersectLists
       subtractLists mutuallyExclusive groupBy groupBy';
@@ -100,7 +100,7 @@ let
       escapeShellArg escapeShellArgs
       isStorePath isStringLike
       isValidPosixName toShellVar toShellVars
-      escapeRegex escapeXML replaceChars lowerChars
+      escapeRegex escapeURL escapeXML replaceChars lowerChars
       upperChars toLower toUpper addContextFrom splitString
       removePrefix removeSuffix versionOlder versionAtLeast
       getName getVersion
@@ -117,10 +117,11 @@ let
     inherit (self.meta) addMetaAttrs dontDistribute setName updateName
       appendToName mapDerivationAttrset setPrio lowPrio lowPrioSet hiPrio
       hiPrioSet getLicenseFromSpdxId getExe;
-    inherit (self.sources) pathType pathIsDirectory cleanSourceFilter
+    inherit (self.filesystem) pathType pathIsDirectory pathIsRegularFile;
+    inherit (self.sources) cleanSourceFilter
       cleanSource sourceByRegex sourceFilesBySuffices
       commitIdFromGitRepo cleanSourceWith pathHasContext
-      canCleanSource pathIsRegularFile pathIsGitRepo;
+      canCleanSource pathIsGitRepo;
     inherit (self.modules) evalModules setDefaultModuleLocation
       unifyModuleSyntax applyModuleArgsIfFunction mergeModules
       mergeModules' mergeOptionDecls evalOptionValue mergeDefinitions
@@ -137,7 +138,7 @@ let
       mergeDefaultOption mergeOneOption mergeEqualOption mergeUniqueOption
       getValues getFiles
       optionAttrSetToDocList optionAttrSetToDocList'
-      scrubOptionValue literalExpression literalExample literalDocBook
+      scrubOptionValue literalExpression literalExample
       showOption showOptionWithDefLocs showFiles
       unknownModule mkOption mkPackageOption mkPackageOptionMD
       mdDoc literalMD;
@@ -145,11 +146,10 @@ let
       isOptionType mkOptionType;
     inherit (self.asserts)
       assertMsg assertOneOf;
-    inherit (self.debug) addErrorContextToAttrs traceIf traceVal traceValFn
-      traceXMLVal traceXMLValMarked traceSeq traceSeqN traceValSeq
-      traceValSeqFn traceValSeqN traceValSeqNFn traceFnSeqN traceShowVal
-      traceShowValMarked showVal traceCall traceCall2 traceCall3
-      traceValIfNot runTests testAllTrue traceCallXml attrNamesToStr;
+    inherit (self.debug) traceIf traceVal traceValFn
+      traceSeq traceSeqN traceValSeq
+      traceValSeqFn traceValSeqN traceValSeqNFn traceFnSeqN
+      runTests testAllTrue;
     inherit (self.misc) maybeEnv defaultMergeArg defaultMerge foldArgs
       maybeAttrNullable maybeAttr ifEnable checkFlag getValue
       checkReqs uniqList uniqListExt condConcat lazyGenericClosure

@@ -3,13 +3,13 @@
 
 let
   inherit (builtins) head tail length;
-  inherit (lib.trivial) flip id mergeAttrs pipe;
+  inherit (lib.trivial) id mergeAttrs;
   inherit (lib.strings) concatStringsSep concatMapStringsSep escapeNixIdentifier sanitizeDerivationName;
   inherit (lib.lists) foldr foldl' concatMap concatLists elemAt all partition groupBy take foldl;
 in
 
 rec {
-  inherit (builtins) attrNames listToAttrs hasAttr isAttrs getAttr;
+  inherit (builtins) attrNames listToAttrs hasAttr isAttrs getAttr removeAttrs;
 
 
   /* Return an attribute from nested attribute sets.
@@ -123,7 +123,11 @@ rec {
          { x = "a"; y = "b"; }
        => { x = "a"; xa = "a"; y = "b"; yb = "b"; }
   */
-  concatMapAttrs = f: flip pipe [ (mapAttrs f) attrValues (foldl' mergeAttrs { }) ];
+  concatMapAttrs = f: v:
+    foldl' mergeAttrs { }
+      (attrValues
+        (mapAttrs f v)
+      );
 
 
   /* Update or set specific paths of an attribute set.
@@ -332,6 +336,66 @@ rec {
         ] else []
       ) (attrNames set)
     );
+
+   /*
+    Like builtins.foldl' but for attribute sets.
+    Iterates over every name-value pair in the given attribute set.
+    The result of the callback function is often called `acc` for accumulator. It is passed between callbacks from left to right and the final `acc` is the return value of `foldlAttrs`.
+
+    Attention:
+      There is a completely different function
+      `lib.foldAttrs`
+      which has nothing to do with this function, despite the similar name.
+
+    Example:
+      foldlAttrs
+        (acc: name: value: {
+          sum = acc.sum + value;
+          names = acc.names ++ [name];
+        })
+        { sum = 0; names = []; }
+        {
+          foo = 1;
+          bar = 10;
+        }
+      ->
+        {
+          sum = 11;
+          names = ["bar" "foo"];
+        }
+
+      foldlAttrs
+        (throw "function not needed")
+        123
+        {};
+      ->
+        123
+
+      foldlAttrs
+        (_: _: v: v)
+        (throw "initial accumulator not needed")
+        { z = 3; a = 2; };
+      ->
+        3
+
+      The accumulator doesn't have to be an attrset.
+      It can be as simple as a number or string.
+
+      foldlAttrs
+        (acc: _: v: acc * 10 + v)
+        1
+        { z = 1; a = 2; };
+      ->
+        121
+
+    Type:
+      foldlAttrs :: ( a -> String -> b -> a ) -> a -> { ... :: b } -> a
+  */
+  foldlAttrs = f: init: set:
+    foldl'
+      (acc: name: f acc name set.${name})
+      init
+      (attrNames set);
 
   /* Apply fold functions to values grouped by key.
 

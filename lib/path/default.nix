@@ -4,8 +4,10 @@ let
 
   inherit (builtins)
     isString
+    isPath
     split
     match
+    typeOf
     ;
 
   inherit (lib.lists)
@@ -14,6 +16,10 @@ let
     last
     genList
     elemAt
+    all
+    concatMap
+    foldl'
+    take
     ;
 
   inherit (lib.strings)
@@ -23,6 +29,10 @@ let
 
   inherit (lib.asserts)
     assertMsg
+    ;
+
+  inherit (lib.path.subpath)
+    isValid
     ;
 
   # Return the reason why a subpath is invalid, or `null` if it's valid
@@ -92,7 +102,120 @@ let
     # An empty string is not a valid relative path, so we need to return a `.` when we have no components
     (if components == [] then "." else concatStringsSep "/" components);
 
+  # Type: Path -> { root :: Path, components :: [ String ] }
+  #
+  # Deconstruct a path value type into:
+  # - root: The filesystem root of the path, generally `/`
+  # - components: All the path's components
+  #
+  # This is similar to `splitString "/" (toString path)` but safer
+  # because it can distinguish different filesystem roots
+  deconstructPath =
+    let
+      recurse = components: base:
+        # If the parent of a path is the path itself, then it's a filesystem root
+        if base == dirOf base then { root = base; inherit components; }
+        else recurse ([ (baseNameOf base) ] ++ components) (dirOf base);
+    in recurse [];
+
 in /* No rec! Add dependencies on this file at the top. */ {
+
+  /* Append a subpath string to a path.
+
+    Like `path + ("/" + string)` but safer, because it errors instead of returning potentially surprising results.
+    More specifically, it checks that the first argument is a [path value type](https://nixos.org/manual/nix/stable/language/values.html#type-path"),
+    and that the second argument is a valid subpath string (see `lib.path.subpath.isValid`).
+
+    Laws:
+
+    - Not influenced by subpath normalisation
+
+        append p s == append p (subpath.normalise s)
+
+    Type:
+      append :: Path -> String -> Path
+
+    Example:
+      append /foo "bar/baz"
+      => /foo/bar/baz
+
+      # subpaths don't need to be normalised
+      append /foo "./bar//baz/./"
+      => /foo/bar/baz
+
+      # can append to root directory
+      append /. "foo/bar"
+      => /foo/bar
+
+      # first argument needs to be a path value type
+      append "/foo" "bar"
+      => <error>
+
+      # second argument needs to be a valid subpath string
+      append /foo /bar
+      => <error>
+      append /foo ""
+      => <error>
+      append /foo "/bar"
+      => <error>
+      append /foo "../bar"
+      => <error>
+  */
+  append =
+    # The absolute path to append to
+    path:
+    # The subpath string to append
+    subpath:
+    assert assertMsg (isPath path) ''
+      lib.path.append: The first argument is of type ${builtins.typeOf path}, but a path was expected'';
+    assert assertMsg (isValid subpath) ''
+      lib.path.append: Second argument is not a valid subpath string:
+          ${subpathInvalidReason subpath}'';
+    path + ("/" + subpath);
+
+  /*
+  Whether the first path is a component-wise prefix of the second path.
+
+  Laws:
+
+  - `hasPrefix p q` is only true if `q == append p s` for some subpath `s`.
+
+  - `hasPrefix` is a [non-strict partial order](https://en.wikipedia.org/wiki/Partially_ordered_set#Non-strict_partial_order) over the set of all path values
+
+  Type:
+    hasPrefix :: Path -> Path -> Bool
+
+  Example:
+    hasPrefix /foo /foo/bar
+    => true
+    hasPrefix /foo /foo
+    => true
+    hasPrefix /foo/bar /foo
+    => false
+    hasPrefix /. /foo
+    => true
+  */
+  hasPrefix =
+    path1:
+    assert assertMsg
+      (isPath path1)
+      "lib.path.hasPrefix: First argument is of type ${typeOf path1}, but a path was expected";
+    let
+      path1Deconstructed = deconstructPath path1;
+    in
+      path2:
+      assert assertMsg
+        (isPath path2)
+        "lib.path.hasPrefix: Second argument is of type ${typeOf path2}, but a path was expected";
+      let
+        path2Deconstructed = deconstructPath path2;
+      in
+        assert assertMsg
+        (path1Deconstructed.root == path2Deconstructed.root) ''
+          lib.path.hasPrefix: Filesystem roots must be the same for both paths, but paths with different roots were given:
+              first argument: "${toString path1}" with root "${toString path1Deconstructed.root}"
+              second argument: "${toString path2}" with root "${toString path2Deconstructed.root}"'';
+        take (length path1Deconstructed.components) path2Deconstructed.components == path1Deconstructed.components;
 
 
   /* Whether a value is a valid subpath string.
@@ -133,9 +256,85 @@ in /* No rec! Add dependencies on this file at the top. */ {
     subpath.isValid "./foo//bar/"
     => true
   */
-  subpath.isValid = value:
+  subpath.isValid =
+    # The value to check
+    value:
     subpathInvalidReason value == null;
 
+
+  /* Join subpath strings together using `/`, returning a normalised subpath string.
+
+    Like `concatStringsSep "/"` but safer, specifically:
+
+    - All elements must be valid subpath strings, see `lib.path.subpath.isValid`
+
+    - The result gets normalised, see `lib.path.subpath.normalise`
+
+    - The edge case of an empty list gets properly handled by returning the neutral subpath `"./."`
+
+    Laws:
+
+    - Associativity:
+
+          subpath.join [ x (subpath.join [ y z ]) ] == subpath.join [ (subpath.join [ x y ]) z ]
+
+    - Identity - `"./."` is the neutral element for normalised paths:
+
+          subpath.join [ ] == "./."
+          subpath.join [ (subpath.normalise p) "./." ] == subpath.normalise p
+          subpath.join [ "./." (subpath.normalise p) ] == subpath.normalise p
+
+    - Normalisation - the result is normalised according to `lib.path.subpath.normalise`:
+
+          subpath.join ps == subpath.normalise (subpath.join ps)
+
+    - For non-empty lists, the implementation is equivalent to normalising the result of `concatStringsSep "/"`.
+      Note that the above laws can be derived from this one.
+
+          ps != [] -> subpath.join ps == subpath.normalise (concatStringsSep "/" ps)
+
+    Type:
+      subpath.join :: [ String ] -> String
+
+    Example:
+      subpath.join [ "foo" "bar/baz" ]
+      => "./foo/bar/baz"
+
+      # normalise the result
+      subpath.join [ "./foo" "." "bar//./baz/" ]
+      => "./foo/bar/baz"
+
+      # passing an empty list results in the current directory
+      subpath.join [ ]
+      => "./."
+
+      # elements must be valid subpath strings
+      subpath.join [ /foo ]
+      => <error>
+      subpath.join [ "" ]
+      => <error>
+      subpath.join [ "/foo" ]
+      => <error>
+      subpath.join [ "../foo" ]
+      => <error>
+  */
+  subpath.join =
+    # The list of subpaths to join together
+    subpaths:
+    # Fast in case all paths are valid
+    if all isValid subpaths
+    then joinRelPath (concatMap splitRelPath subpaths)
+    else
+      # Otherwise we take our time to gather more info for a better error message
+      # Strictly go through each path, throwing on the first invalid one
+      # Tracks the list index in the fold accumulator
+      foldl' (i: path:
+        if isValid path
+        then i + 1
+        else throw ''
+          lib.path.subpath.join: Element at index ${toString i} is not a valid subpath string:
+              ${subpathInvalidReason path}''
+      ) 0 subpaths;
 
   /* Normalise a subpath. Throw an error if the subpath isn't valid, see
   `lib.path.subpath.isValid`
@@ -150,11 +349,11 @@ in /* No rec! Add dependencies on this file at the top. */ {
 
   Laws:
 
-  - (Idempotency) Normalising multiple times gives the same result:
+  - Idempotency - normalising multiple times gives the same result:
 
         subpath.normalise (subpath.normalise p) == subpath.normalise p
 
-  - (Uniqueness) There's only a single normalisation for the paths that lead to the same file system node:
+  - Uniqueness - there's only a single normalisation for the paths that lead to the same file system node:
 
         subpath.normalise p != subpath.normalise q -> $(realpath ${p}) != $(realpath ${q})
 
@@ -210,9 +409,12 @@ in /* No rec! Add dependencies on this file at the top. */ {
     subpath.normalise "/foo"
     => <error>
   */
-  subpath.normalise = path:
-    assert assertMsg (subpathInvalidReason path == null)
-      "lib.path.subpath.normalise: Argument is not a valid subpath string: ${subpathInvalidReason path}";
-    joinRelPath (splitRelPath path);
+  subpath.normalise =
+    # The subpath string to normalise
+    subpath:
+    assert assertMsg (isValid subpath) ''
+      lib.path.subpath.normalise: Argument is not a valid subpath string:
+          ${subpathInvalidReason subpath}'';
+    joinRelPath (splitRelPath subpath);
 
 }

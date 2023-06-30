@@ -54,14 +54,15 @@ buildPythonPackage rec {
     psycopg2
     pymysql
     pytestCheckHook
-  ] ++ passthru.optional-dependencies.flask
-  ++ passthru.optional-dependencies.flask-login
-  ++ passthru.optional-dependencies.flask-sqlalchemy
-  ++ passthru.optional-dependencies.flexmock
-  ++ passthru.optional-dependencies.i18n;
+  ] ++ lib.flatten (builtins.attrValues passthru.optional-dependencies);
 
-  # indicate tests that we don't have a database server at hand
+  # Indicate tests that we don't have a database server at hand
   DB = "sqlite";
+
+  disabledTestPaths = [
+    # Test doesn't support latest SQLAlchemy
+    "tests/plugins/test_flask.py"
+  ];
 
   pythonImportsCheck = [
     "sqlalchemy_continuum"
@@ -73,5 +74,8 @@ buildPythonPackage rec {
     changelog = "https://github.com/kvesteri/sqlalchemy-continuum/blob/${version}/CHANGES.rst";
     license = licenses.bsd3;
     maintainers = with maintainers; [ ];
+
+    # https://github.com/kvesteri/sqlalchemy-continuum/issues/326
+    broken = versionAtLeast sqlalchemy.version "2";
   };
 }

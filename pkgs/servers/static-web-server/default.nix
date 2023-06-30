@@ -2,16 +2,16 @@
 
 rustPlatform.buildRustPackage rec {
   pname = "static-web-server";
-  version = "2.14.1";
+  version = "2.19.0";
 
   src = fetchFromGitHub {
     owner = "static-web-server";
     repo = pname;
     rev = "v${version}";
-    sha256 = "1x9l39yf65a8ji8x84h583s82hlj6s99gj0fsm4sh2l4i8yrq2yb";
+    sha256 = "sha256-oJHQNB04CKgGEoPr1NBp7vH9MO8PFWGylP/CsKZ6iJA=";
   };
 
-  cargoSha256 = "sha256-Ox1mHjeBprxmuqPIVxeTXDyFcEuipSJ7UjXZjcLElIs=";
+  cargoHash = "sha256-zETVW7NGFfZOgAkZXNaVYWzSMXX3GvBQEf84JsCkIqs=";
 
   buildInputs = lib.optionals stdenv.isDarwin [
     darwin.apple_sdk.frameworks.Security
@@ -26,7 +26,7 @@ rustPlatform.buildRustPackage rec {
 
   meta = with lib; {
     description = "An asynchronus web server for static files-serving";
-    homepage = "https://sws.joseluisq.net";
+    homepage = "https://static-web-server.net/";
     changelog = "https://github.com/static-web-server/static-web-server/blob/v${version}/CHANGELOG.md";
     license = with licenses; [ mit /* or */ asl20 ];
     maintainers = with maintainers; [ figsoda ];

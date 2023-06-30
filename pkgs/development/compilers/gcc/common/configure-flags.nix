@@ -11,6 +11,7 @@
 , enableLTO
 , enableMultilib
 , enablePlugin
+, disableGdbPlugin ? !enablePlugin
 , enableShared
 
 , langC
@@ -23,9 +24,10 @@
 , langObjC
 , langObjCpp
 , langJit
+, disableBootstrap ? stdenv.targetPlatform != stdenv.hostPlatform
 }:
 
-assert cloog != null -> lib.versionOlder version "5";
+assert !enablePlugin -> disableGdbPlugin;
 assert langJava -> lib.versionOlder version "7";
 
 # Note [Windows Exception Handling]
@@ -41,6 +43,9 @@ assert langJava -> lib.versionOlder version "7";
 let
   inherit (stdenv)
     buildPlatform hostPlatform targetPlatform;
+
+  # See https://github.com/NixOS/nixpkgs/pull/209870#issuecomment-1500550903
+  disableBootstrap' = disableBootstrap && !langFortran && !langGo;
 
   crossMingw = targetPlatform != hostPlatform && targetPlatform.libc == "msvcrt";
   crossDarwin = targetPlatform != hostPlatform && targetPlatform.libc == "libSystem";
@@ -172,9 +177,9 @@ let
       then ["--enable-multilib" "--disable-libquadmath"]
       else ["--disable-multilib"])
     ++ lib.optional (!enableShared) "--disable-shared"
-    ++ [
-      (lib.enableFeature enablePlugin "plugin")
-    ]
+    ++ lib.singleton (lib.enableFeature enablePlugin "plugin")
+    # Libcc1 is the GCC cc1 plugin for the GDB debugger which is only used by gdb
+    ++ lib.optional disableGdbPlugin "--disable-libcc1"
 
     # Support -m32 on powerpc64le/be
     ++ lib.optional (targetPlatform.system == "powerpc64le-linux")
@@ -188,7 +193,7 @@ let
 
     # Optional features
     ++ lib.optional (isl != null) "--with-isl=${isl}"
-    ++ lib.optionals (cloog != null) [
+    ++ lib.optionals (lib.versionOlder version "5" && cloog != null) [
       "--with-cloog=${cloog}"
       "--disable-cloog-version-check"
       "--enable-cloog-backend=isl"
@@ -212,10 +217,9 @@ let
     ++ lib.optional javaAwtGtk "--enable-java-awt=gtk"
     ++ lib.optional (langJava && javaAntlr != null) "--with-antlr-jar=${javaAntlr}"
 
-    # TODO: aarch64-darwin has clang stdenv and its arch and cpu flag values are incompatible with gcc
-    ++ lib.optionals (!(stdenv.isDarwin && stdenv.isAarch64)) (import ../common/platform-flags.nix { inherit (stdenv)  targetPlatform; inherit lib; })
+    ++ import ../common/platform-flags.nix { inherit (stdenv)  targetPlatform; inherit lib; }
     ++ lib.optionals (targetPlatform != hostPlatform) crossConfigureFlags
-    ++ lib.optional (targetPlatform != hostPlatform) "--disable-bootstrap"
+    ++ lib.optional disableBootstrap' "--disable-bootstrap"
 
     # Platform-specific flags
     ++ lib.optional (targetPlatform == hostPlatform && targetPlatform.isx86_32) "--with-arch=${stdenv.hostPlatform.parsed.cpu.name}"
